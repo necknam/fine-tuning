@@ -19,6 +19,11 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def trim_generated(ids,eos_token_id):
+    """Discard padding added after an individual sequence's EOS in a batch."""
+    return ids[:ids.index(eos_token_id)+1] if eos_token_id in ids else ids
+
+
 def load_case(path, index):
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
     if index < 0 or index >= len(rows):
@@ -59,17 +64,27 @@ def save_report(output, result):
 
 
 
+def inference_packages():
+    packages={}
+    for name in ("torch","transformers","peft","bitsandbytes","causal-conv1d","flash-linear-attention","fla-core","einops","triton"):
+        try:packages[name]=importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:pass
+    return packages
+
+
 def find_base_cache(root,cfg,messages,generation,manifest):
     """Reuse only the identical BF16 base comparison, independent of the adapter."""
     names=("tokenizer.json","tokenizer_config.json","chat_template.jinja")
     hashes=manifest.get("file_sha256",{})
     if any(not hashes.get(name) for name in names):
         return None
+    packages=inference_packages()
     for path in sorted((root/"reports").glob("smoke_compare_*/comparison.json"),reverse=True):
         data=json.loads(path.read_text(encoding="utf-8"))
         other=data.get("factory_manifest",{}).get("file_sha256",{})
         base=data.get("base",{})
-        if (data.get("model")==cfg["model"]
+        if (data.get("packages")==packages
+            and data.get("model")==cfg["model"]
             and data.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
             and data.get("messages")==messages and data.get("generation")==generation
             and all(other.get(name)==hashes[name] for name in names)
@@ -86,6 +101,7 @@ def main():
     parser.add_argument("--case-index", type=int, default=0)
     parser.add_argument("--case-indices", type=int, nargs="+", help="Generate these cases with one shared BF16 model load")
     parser.add_argument("--max-new-tokens", type=int, default=512)
+    parser.add_argument("--batch-size", type=int, choices=(1,2,4), default=None, help="Concurrent BF16 generation inputs")
     args = parser.parse_args()
     if not 1 <= args.max_new_tokens <= 2048:
         raise ValueError("max-new-tokens must be 1..2048")
@@ -95,6 +111,9 @@ def main():
     load_dotenv(root / ".env")
     config_path = (root / args.config).resolve()
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8-sig"))
+    args.batch_size=args.batch_size or cfg.get("inference",{}).get("batch_size",1)
+    if type(args.batch_size) is not int or args.batch_size not in (1,2,4):
+        raise ValueError("inference.batch_size must be 1, 2 or 4")
     revision = cfg["model"]["revision"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("Use a pinned model revision")
@@ -140,6 +159,8 @@ def main():
     total_cases=sum(bool(line.strip()) for line in test_path.read_text(encoding="utf-8-sig").splitlines())
     indices=list(dict.fromkeys(args.case_indices if args.case_indices is not None else [args.case_index]))
     cases=[(index,*load_case(test_path,index)) for index in indices]
+    adapter_digest=sha256(adapter/"adapter_model.safetensors")
+    test_digest=sha256(test_path)
 
     import torch
     from peft import PeftModel
@@ -153,6 +174,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(str(adapter), trust_remote_code=False)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
     print("진행 안내: 원본 BF16 기본 모델을 불러오고 저장한 LoRA 어댑터를 적용합니다.", flush=True)
     base = AutoModelForImageTextToText.from_pretrained(cfg["model"]["base_model_id"],
         dtype=torch.bfloat16, device_map={"": 0}, attn_implementation="sdpa", **common)
@@ -168,59 +190,55 @@ def main():
                   "pad_token_id": tokenizer.pad_token_id,
                   "eos_token_id": tokenizer.eos_token_id}
 
-    def generate(inputs):
-        torch.cuda.synchronize()
-        start = time.perf_counter()
-        with torch.inference_mode():
-            answer = model.generate(**inputs, **generation)
-        torch.cuda.synchronize()
-        elapsed = time.perf_counter() - start
-        ids = answer[0, inputs["input_ids"].shape[1]:].tolist()
-        return {"text": tokenizer.decode(ids, skip_special_tokens=True), "tokens": len(ids),
-                "hit_token_limit": len(ids) >= args.max_new_tokens,
-                "ended_with_eos": bool(ids and ids[-1] == tokenizer.eos_token_id),
-                "seconds": elapsed}
-
-    for case_index,messages,reference in cases:
-        print(f"진행 안내: {manifest['trained_epoch']}에포크 · 입력 {case_index+1}/{total_cases} 답변 생성 중 · BF16 모델 재사용",flush=True)
-        torch.cuda.reset_peak_memory_stats()
-        text = tokenizer.apply_chat_template(messages, tokenize=False,
-            add_generation_prompt=True, enable_thinking=False)
-        inputs = tokenizer(text, add_special_tokens=False, return_tensors="pt").to("cuda:0")
-        if inputs["input_ids"].shape[1] > cfg["experiments"][0]["training"]["max_length"]:
+    def generate_batch(selected):
+        texts=[tokenizer.apply_chat_template(messages,tokenize=False,
+            add_generation_prompt=True,enable_thinking=False) for _,messages,_ in selected]
+        inputs=tokenizer(texts,add_special_tokens=False,padding=True,return_tensors="pt").to("cuda:0")
+        lengths=inputs["attention_mask"].sum(dim=1).tolist()
+        if max(lengths)>cfg["experiments"][0]["training"]["max_length"]:
             raise ValueError("Selected test prompt exceeds the configured length; no truncation performed")
-        cached_base=find_base_cache(root,cfg,messages,generation,manifest)
-        if cached_base:
-            base_response=cached_base[1]
-            print("진행 안내: 동일 모델·입력·생성 조건의 BF16 기본 답변을 재사용합니다.",flush=True)
-        else:
-            print("Generating base response (adapter disabled)...", flush=True)
-            with model.disable_adapter():
-                base_response = generate(inputs)
-        print("Generating tuned response (adapter enabled)...", flush=True)
-        tuned_response = generate(inputs)
-        result = {"purpose": "fixed-input BF16 comparison; human evaluation scored separately",
-            "created_at": datetime.now(timezone.utc).isoformat(), "model": cfg["model"],
-            "quantization": evaluation_precision, "training_quantization": cfg["quantization"], "adapter_path": args.adapter,
-            "factory_manifest": manifest,
-            "adapter_sha256": sha256(adapter / "adapter_model.safetensors"),
-            "test_sha256": sha256(test_path), "case_index": case_index,
-            "evaluation_total": total_cases,
-            "messages": messages, "reference_unreviewed": reference,
-            "generation": generation, "input_tokens": inputs["input_ids"].shape[1],
-            "packages": {name: importlib.metadata.version(name) for name in
-                         ("torch", "transformers", "peft", "bitsandbytes")},
-            "inference_memory": {"peak_allocated_gib":torch.cuda.max_memory_allocated()/2**30,"peak_reserved_gib":torch.cuda.max_memory_reserved()/2**30},
-            "base_reused":cached_base is not None,
-            "base_source_report":str(cached_base[0].relative_to(root)) if cached_base else None,
-            "base": base_response, "tuned": tuned_response,
-            "texts_identical": base_response["text"] == tuned_response["text"]}
-        output = root / "reports" / ("smoke_compare_" + datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:6])
-        save_report(output, result)
-        print(f"진행 안내: 입력 {case_index+1}/{total_cases} 저장 완료 · 기본 {base_response['seconds']:.1f}초 / 학습 {tuned_response['seconds']:.1f}초",flush=True)
-        print(f"\nCOMPARE PASSED: {output}")
-        print("No training, HF upload, DB writes or quality verdict performed.")
-    print(f"BF16 BATCH COMPLETE: cases={len(cases)}; model_loads=1",flush=True)
+        torch.cuda.synchronize();start=time.perf_counter()
+        with torch.inference_mode():answer=model.generate(**inputs,**generation)
+        torch.cuda.synchronize();elapsed=time.perf_counter()-start
+        responses=[]
+        for row in answer[:,inputs["input_ids"].shape[1]:].tolist():
+            ids=trim_generated(row,tokenizer.eos_token_id)
+            responses.append({"text":tokenizer.decode(ids,skip_special_tokens=True),"tokens":len(ids),
+                "hit_token_limit":len(ids)>=args.max_new_tokens,
+                "ended_with_eos":bool(ids and ids[-1]==tokenizer.eos_token_id),
+                "seconds":elapsed,"generation_batch_size":len(selected)})
+        return responses,lengths
+
+    for offset in range(0,len(cases),args.batch_size):
+        selected=cases[offset:offset+args.batch_size]
+        print(f"진행 안내: {manifest['trained_epoch']}에포크 · 입력 {offset+1}~{offset+len(selected)}/{len(cases)} · {len(selected)}개 동시 생성",flush=True)
+        torch.cuda.reset_peak_memory_stats()
+        cached=[find_base_cache(root,cfg,messages,generation,manifest) for _,messages,_ in selected]
+        missing=[case for case,entry in zip(selected,cached) if entry is None]
+        base_results={}
+        if missing:
+            with model.disable_adapter():responses,_=generate_batch(missing)
+            base_results={case[0]:response for case,response in zip(missing,responses)}
+        tuned_results,lengths=generate_batch(selected)
+        for (case_index,messages,reference),cached_base,tuned_response,input_length in zip(selected,cached,tuned_results,lengths):
+            base_response=cached_base[1] if cached_base else base_results[case_index]
+            result={"purpose":"fixed-input BF16 comparison; human evaluation scored separately",
+                "created_at":datetime.now(timezone.utc).isoformat(),"model":cfg["model"],
+                "quantization":evaluation_precision,"training_quantization":cfg["quantization"],"adapter_path":args.adapter,
+                "factory_manifest":manifest,"adapter_sha256":adapter_digest,
+                "test_sha256":test_digest,"case_index":case_index,"evaluation_total":total_cases,
+                "messages":messages,"reference_unreviewed":reference,"generation":generation,"input_tokens":input_length,
+                "inference_batch_size":len(selected),
+                "packages":inference_packages(),
+                "inference_memory":{"peak_allocated_gib":torch.cuda.max_memory_allocated()/2**30,"peak_reserved_gib":torch.cuda.max_memory_reserved()/2**30},
+                "base_reused":cached_base is not None,"base_source_report":str(cached_base[0].relative_to(root)) if cached_base else None,
+                "base":base_response,"tuned":tuned_response,"texts_identical":base_response["text"]==tuned_response["text"]}
+            output=root/"reports"/("smoke_compare_"+datetime.now().strftime("%Y%m%d_%H%M%S")+"_"+uuid4().hex[:6])
+            save_report(output,result)
+            print(f"진행 안내: 입력 {case_index+1}/{total_cases} 저장 완료",flush=True)
+            print(f"COMPARE PASSED: {output}",flush=True)
+    print(f"BF16 BATCH COMPLETE: cases={len(cases)}; model_loads=1; batch_size={args.batch_size}",flush=True)
+    print("No training, HF upload, DB writes or quality verdict performed.",flush=True)
 
 
 if __name__ == "__main__":

@@ -91,6 +91,79 @@ class RuntimeSafety(unittest.TestCase):
         guard.rollback.assert_called_once()
         guard.close.assert_called_once()
 
+    def test_batched_generation_keeps_case_alignment_and_eos_lengths(self):
+        import ast
+        from contextlib import nullcontext
+        class Tensor:
+            def __init__(self,rows):self.rows=rows;self.shape=(len(rows),len(rows[0]))
+            def sum(self,dim):return SimpleNamespace(tolist=lambda:[sum(row) for row in self.rows])
+            def tolist(self):return self.rows
+            def __getitem__(self,key):return Tensor([row[key[1]] for row in self.rows[key[0]]])
+        torch=SimpleNamespace(tensor=Tensor,cuda=SimpleNamespace(synchronize=lambda:None),inference_mode=nullcontext)
+        source=ast.parse((ROOT/'scripts/compare_factory_sample.py').read_text(encoding='utf-8'))
+        functions=[next(n for n in ast.walk(source) if isinstance(n,ast.FunctionDef) and n.name==name)
+                   for name in ('trim_generated','generate_batch')]
+        class Inputs(dict):
+            def to(self,device):return self
+        class Tokenizer:
+            eos_token_id=9
+            def apply_chat_template(self,messages,**kwargs):return messages[0]['content']
+            def __call__(self,texts,**kwargs):
+                self.padding=kwargs['padding']
+                return Inputs(input_ids=torch.tensor([[0,1],[2,3]]),attention_mask=torch.tensor([[0,1],[1,1]]))
+            def decode(self,ids,**kwargs):return str(ids)
+        tokenizer=Tokenizer()
+        scope=dict(tokenizer=tokenizer,torch=torch,time=time,cfg={'experiments':[{'training':{'max_length':10}}]},
+                   args=SimpleNamespace(max_new_tokens=3),generation={},
+                   model=SimpleNamespace(generate=lambda **kwargs:torch.tensor([[0,1,4,9,0],[2,3,5,6,9]])))
+        exec(compile(ast.Module(body=functions,type_ignores=[]),'comparison_batch','exec'),scope)
+        responses,lengths=scope['generate_batch']([(0,[{'content':'a'}],None),(1,[{'content':'b'}],None)])
+        self.assertTrue(tokenizer.padding)
+        self.assertEqual(lengths,[1,2])
+        self.assertEqual([r['tokens'] for r in responses],[2,3])
+        self.assertEqual([r['text'] for r in responses],['[4, 9]','[5, 6, 9]'])
+        self.assertTrue(all(r['ended_with_eos'] for r in responses))
+        self.assertEqual([r['generation_batch_size'] for r in responses],[2,2])
+
+    def test_base_answer_cache_requires_matching_kernel_packages(self):
+        import compare_factory_sample as comparison
+        manifest={'file_sha256':{name:'hash' for name in ('tokenizer.json','tokenizer_config.json','chat_template.jinja')}}
+        cfg={'model':{'base_model_id':'test','revision':'pinned'}}
+        messages=[{'role':'user','content':'question'}];generation={'max_new_tokens':128}
+        entry={'model':cfg['model'],'quantization':{'load_in_4bit':False,'dtype':'bfloat16'},'messages':messages,
+               'generation':generation,'factory_manifest':manifest,'packages':{'torch':'test','fla-core':'new'},
+               'base':{'text':'answer','ended_with_eos':True,'hit_token_limit':False}}
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);report=root/'reports/smoke_compare_test/comparison.json';report.parent.mkdir(parents=True)
+            report.write_text(json.dumps(entry),encoding='utf-8')
+            with patch.object(comparison,'inference_packages',return_value=entry['packages']):
+                self.assertIsNotNone(comparison.find_base_cache(root,cfg,messages,generation,manifest))
+            with patch.object(comparison,'inference_packages',return_value={'torch':'test','fla-core':'old'}):
+                self.assertIsNone(comparison.find_base_cache(root,cfg,messages,generation,manifest))
+
+    def test_preset_effective_batch_stays_consistent_after_speed_defaults(self):
+        import yaml
+        from experiment_presets import PRESETS
+        cfg=yaml.safe_load((ROOT/'configs/hyperparameters.sample.pinned.yaml').read_text(encoding='utf-8'))
+        default=cfg['experiments'][0]['training'];self.assertEqual(len(PRESETS),25)
+        for pid,_,changes,_ in PRESETS:
+            recipe=dict(default,**changes)
+            effective=recipe['per_device_train_batch_size']*recipe['gradient_accumulation_steps']
+            self.assertEqual(effective,32 if pid=='P10' else 16,pid)
+
+    def test_hard_evaluation_suite_is_ten_fixed_held_out_requests(self):
+        entries=[json.loads(line) for line in (ROOT/'data/eval/prompts.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
+        self.assertEqual(len(entries),10)
+        requests=[json.loads(entry['messages'][-1]['content']) for entry in entries]
+        self.assertTrue(all(entry['messages'][-1]['role']=='user' for entry in entries))
+        self.assertEqual(sum(r['task']=='revise_roadmap' for r in requests),2)
+        original=dict(requests[0]);original.pop('perspective')
+        for request in requests[1:3]:
+            comparable=dict(request);comparable.pop('perspective');self.assertEqual(comparable,original)
+        self.assertEqual(len({r['perspective'] for r in requests[:3]}),3)
+        self.assertTrue(requests[8]['existing_roadmap']['stages'][0]['completed'])
+        self.assertTrue(requests[9]['employee_requested_changes'])
+
     def test_strict_judge_start_stage_and_grounded_evidence(self):
         request={'task':'generate_roadmap','start_stage':2,'duration_weeks':4,'weekly_hours':3,'budget_krw':50000,'resources':[]}
         answer={'stages':[{'stage':1,'hours':2,'cost_krw':0,'resource_ids':[],'activity':'질문 작성'},

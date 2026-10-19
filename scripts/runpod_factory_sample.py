@@ -120,6 +120,10 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     output = factory_output(root,record["run_id"],plan["config"]["is_sample"])
     versions = {name: importlib.metadata.version(name) for name in
                 ("torch", "transformers", "peft", "accelerate", "bitsandbytes", "huggingface_hub", "SQLAlchemy", "psycopg")}
+    # Kernel changes affect numerical execution and must invalidate incompatible resumes.
+    for name in ("causal-conv1d","flash-linear-attention","fla-core","einops","triton"):
+        try:versions[name]=importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:pass
     runtime = {"pipeline": "sample_factory_v1" if plan["config"]["is_sample"] else "production_factory_v1", "loss": "all_conversation_tokens",
         "config_hash": plan["config_hash"], "model": cfg["model"], "packages": versions,
         "cuda": torch.version.cuda,

@@ -11,3 +11,11 @@ psycopg[binary]==3.3.6
 PyYAML==6.0.3
 python-dotenv==1.2.4
 safetensors==0.8.0
+
+# Tested on Linux x86_64 / CPython 3.12 / torch 2.8 cu128 / CXX11 ABI=True.
+# Official prebuilt CUDA wheel avoids compiling against an unintended torch build.
+ninja==1.13.2
+einops==0.8.2
+fla-core==0.5.2
+flash-linear-attention==0.5.2
+causal-conv1d @ https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.7.0/causal_conv1d-1.7.0+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl

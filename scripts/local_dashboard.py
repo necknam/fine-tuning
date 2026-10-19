@@ -573,6 +573,7 @@ with experiment_tab:
                 warmup=st.number_input("워밍업 비율",min_value=0.0,max_value=0.9,value=float(defaults["warmup_ratio"]),step=0.05)
                 scheduler=st.selectbox("학습률 스케줄",["cosine","linear","constant"],index=["cosine","linear","constant"].index(defaults["lr_scheduler_type"]))
                 seed=st.number_input("시드",min_value=0,value=int(defaults["seed"]))
+                generation_batch=st.selectbox("답변 동시 생성 개수",[1,2,4],index=[1,2,4].index(base.get("inference",{}).get("batch_size",1)),help="학습 배치와 별개입니다. 메모리가 부족하면 1로 낮추세요.")
                 priority=st.selectbox("대기열 우선순위",[10,0,20],format_func=lambda v:{0:"높음",10:"보통",20:"낮음"}[v])
             st.caption("총 5에포크 · 4/5에포크 저장 · NF4/BF16 · 언어 모델 Linear 계층. 높은 우선순위도 현재 실행 중인 작업을 중단하지 않습니다.")
             start=st.form_submit_button("새 실험 등록 · 실행 중이면 다음 순서로",type="primary",disabled=not data_ready)
@@ -580,6 +581,7 @@ with experiment_tab:
             try:
                 base["experiment_id"]=str(uuid.uuid4())
                 base["data"]["test_file"]=evaluation_file
+                base["inference"]={"batch_size":int(generation_batch)}
                 recipe["recipe_name"]=label
                 recipe["lora"].update(r=int(rank),lora_alpha=int(alpha),lora_dropout=float(dropout))
                 recipe["training"].update(learning_rate=float(lr),per_device_train_batch_size=int(batch),

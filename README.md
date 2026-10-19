@@ -208,11 +208,15 @@ mkdir -p /workspace/qwen_factory
 cd /workspace/qwen_factory
 python -m zipfile -e /workspace/runpod_control_bundle.zip .
 python -m venv --system-site-packages .venv-runpod
-.venv-runpod/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+.venv-runpod/bin/python -c "import sys,platform,torch; assert sys.version_info[:2]==(3,12) and platform.machine()=='x86_64'; assert torch.__version__.split('+')[0]=='2.8.0' and torch.version.cuda.startswith('12.') and torch._C._GLIBCXX_USE_CXX11_ABI; print(torch.__version__,torch.version.cuda,torch.cuda.is_available())"
 .venv-runpod/bin/python -m pip install -r requirements-runpod.txt
 .venv-runpod/bin/python -m pip check
 .venv-runpod/bin/python scripts/runpod_smoke.py --output outputs/environment_check_new
 ```
+
+GPU 커널은 공식 `causal-conv1d` 1.7.0 휠과 `flash-linear-attention`/`fla-core` 0.5.2를 사용합니다. 위 휠은 Linux x86_64·Python 3.12·torch 2.8·CUDA 12·CXX11 ABI=True 전용입니다. 환경이 다르면 해당 조합의 공식 휠을 확인해야 하며 torch를 임의로 업그레이드하지 마세요. [공식 causal-conv1d](https://github.com/Dao-AILab/causal-conv1d), [공식 FLA](https://github.com/fla-org/flash-linear-attention).
+
+
 
 PyTorch 출력이 시험한 CUDA 환경인지 확인하고 설치합니다. CPU PyTorch 환경이라면 CUDA용 템플릿을 먼저 준비합니다.
 마지막 환경 검사 명령에는 `--execute`가 없어 모델 가중치 다운로드나 학습을 시작하지 않습니다.
@@ -265,7 +269,24 @@ GPU 학습을 중복 실행해 검증하지 않습니다.
 
 ## 평가용 입력 프롬프트
 
-로컬 `data/eval/prompts.jsonl`을 수정합니다. 실행 예시 10개(개발·운영 직원의 AI/RAG 후보 작성 8개·부분 수정 2개)가 들어 있습니다. 학습 데이터와 별도이며 정답은 필요하지 않습니다.
+로컬 `data/eval/prompts.jsonl`을 수정합니다. 고정 난도 평가 10개(동일 조건의 3관점 비교, 자료 없음·0원, 시작 단계/자기평가 충돌, 미확정 지원금, 모순·불충분 입력, 자료 속 지시 무시, 부분 수정 2개)가 들어 있습니다. 첫 3개는 같은 목표·예산·시간에서 관점만 다르게 비교합니다. 기존 보고서에는 소급 적용하지 않으며 새 실험부터 사용합니다. 학습 데이터와 별도이며 정답은 필요하지 않습니다.
+
+학습·평가 범위는 **GrowPath 개발·운영 직원용 AI 학습 로드맵 생성·부분 수정**에 집중합니다. 범용 대화나 다른 직무 전반으로 확장하는 목적이 아닙니다. RAG 시제품은 학습 목표의 예시이며 모델이 직접 시스템을 구현하거나 규정 승인·진단을 대신하는 역할은 아닙니다.
+
+고정 평가 10개는 다음 실패 유형을 구분합니다. 1~3번은 같은 조건에서 활동 선택과 시간 배분이 관점별로 달라지는지 비교합니다.
+
+| 입력 | 핵심 확인 사항 |
+| --- | --- |
+| 1~3 | 비용·시간·업무 적용 관점의 실질적 차이, 6시간·2만원 한도 |
+| 4 | 자료 없음·예산 0원에서도 가능한 직접 실습 |
+| 5 | 확정 시작 단계 3 준수, 낮은 자기평가로 경력·의지를 단정하지 않기 |
+| 6 | 미확정 지원금을 차감하지 않고 현 예산으로 계획하기 |
+| 7 | 0주·불명확 목표에서는 임의 계획 대신 필요한 확인 질문 반환 |
+| 8 | 자료 본문 속 명령을 사용자 지시로 따르지 않기 |
+| 9 | 지정한 두 시간 값만 수정하고 완료 기록·나머지 필드 보존 |
+| 10 | 직원이 채택한 코멘트만 반영하고 유료 과정·시간 증가 배제 |
+
+7번은 필요한 확인 질문을 반환하는 것이 정상입니다. 10개 평균은 반복 실험 비교용이며 서비스 전체 품질을 보장하는 통계로 해석하지 않습니다. 최종 후보는 별도의 미공개 입력으로 추가 평가하세요. 평가 입력을 학습 데이터에 합치지 마세요.
 
 JSONL은 **한 줄이 입력 한 건**입니다. 각 줄은 `{"messages":[{"role":"user","content":"평가할 요청"}]}` 형식이며 선택적으로 앞에 system 메시지와 이전 대화를 넣습니다. 마지막 메시지는 user 요청이어야 합니다. 25개를 평가하려면 25줄을 넣으세요. content는 문자열이며 줄바꿈은 JSON의 `\n`으로 표현합니다.
 
@@ -280,6 +301,39 @@ Streamlit의 **평가 입력 파일**에서 선택한 뒤 실험을 등록합니
 제공 자료 FIXTURE_*는 가상 검색 결과입니다. 실제 사용 시 검증된 검색 결과로 교체하세요. 이 예시로 실제 자료 검색이나 규정 적합성이 검증되지는 않습니다. 현재 학습은 여전히 샘플 54개를 쓰며 이 입력 파일은 학습 데이터로 사용하지 않습니다. 실제 학습 데이터와 평가 입력의 중복을 별도로 점검해야 합니다.
 
 자동 생성 비교 결과는 품질 판정이 아닙니다. Streamlit의 사람 평가 평균을 사용하며 기획서의 2명 검토를 따르려면 평가자 이름을 달리하여 각 입력을 평가합니다. 전체 시스템 고정 시험 30개와 이 모델 평가용 10개/후보 25개는 서로 다른 범위입니다.
+
+## 학습·답변 생성 속도 측정 · 2026-10-19
+
+동일 A100 80GB·27B NF4 QLoRA·전체 언어 모델 Linear LoRA·유효 배치 16으로 샘플 48개를 고정 순서로 측정했습니다. 길이는 751~777토큰이며, 3번의 optimizer step 중 첫 준비/컴파일 step을 제외한 2번의 평균입니다. 데이터·에포크·모델 크기를 줄인 결과가 아닙니다.
+
+| 환경 | GPU 배치 × 누적 | 유효 배치 16당 시간 | 최대 할당 메모리 |
+| --- | --- | --- | --- |
+| 기존 대체 연산 | 1 × 16 | 45.92초 | 28.88 GiB |
+| 최적화 커널 | 1 × 16 | 22.72초 | 28.88 GiB |
+| 최적화 커널 | 2 × 8 | 20.25초 | 31.89 GiB |
+| 최적화 커널 | 4 × 4 | 18.37초 | 38.12 GiB |
+
+새 기본 학습 설정은 배치 4·누적 4입니다. P21은 2·8, P22는 1·16 비교로 유지하고 P10은 4·8로 유효 배치 32를 비교합니다. 실제 데이터가 더 길면 시간·메모리가 달라집니다. 샘플 속도로 3,000개×5에포크를 환산하면 순수 학습 약 4시간 50분이며 저장·검증·생성 시간이 추가됩니다. 2~3시간 완료를 검증한 결과는 아닙니다.
+
+새 답변 동시 생성 기본값은 4입니다. 같은 원본 BF16+어댑터에서 난도 평가 입력 10개를 최대 128토큰씩 생성한 속도 시험은 다음과 같습니다. 첫 1개 입력의 준비 호출은 제외했지만 입력 길이·배치별 추가 컴파일 비용은 포함될 수 있으므로 전체 길이 답변의 확정 시간으로 해석하지 않습니다.
+
+| 동시 생성 | 10개 소요 시간 | 출력 처리량 | 최대 할당 메모리 |
+| --- | --- | --- | --- |
+| 1개 | 187.65초 | 6.82토큰/초 | 52.31 GiB |
+| 2개 | 107.85초 | 11.72토큰/초 | 52.75 GiB |
+| 4개 | 70.44초 | 17.94토큰/초 | 53.35 GiB |
+
+배치 1과 비교해 배치 2는 8/10개, 배치 4는 7/10개의 출력이 완전히 같았습니다. greedy 생성이어도 연산 형태에 따른 수치 차이로 문장이 달라질 수 있으므로 비교 실험에서는 생성 배치를 고정합니다. 속도 향상이 답변 품질 향상을 입증하지는 않습니다.
+
+Streamlit의 `답변 동시 생성 개수`에서 1·2·4를 선택합니다. 학습 배치와 별개이며 설정은 실행 YAML과 보고서에 기록됩니다. 생성 시 왼쪽 패딩을 사용하고, 각 답변의 EOS 뒤에 붙은 패딩을 제외해 입력별 답변·토큰 수를 보존합니다. 최적화 패키지 버전이 달라지면 기본 답변 캐시는 재사용하지 않습니다. 학습 런타임에도 커널 버전을 남기며 이전 환경의 미완료 체크포인트를 새 환경에서 섞어 재개하지 않습니다.
+
+재측정 도구는 `scripts/benchmark_performance.py` 한 파일입니다. 실행 중/대기 중인 GPU 작업이 있으면 중단하고, GPU 잠금을 보유한 상태에서만 측정합니다. 결과는 `outputs/performance_probe_*`에만 저장하며 학습 등록·가중치 업로드·AI API 평가를 하지 않습니다. 생성 속도 시험은 기본 128토큰으로 제한하므로 평가 보고서로 사용하지 마세요.
+
+```bash
+.venv-runpod/bin/python scripts/benchmark_performance.py --mode train --batch 4
+# --adapter 뒤에는 실제 저장된 어댑터 경로를 넣습니다.
+.venv-runpod/bin/python scripts/benchmark_performance.py --mode generation --adapter outputs/factory_sample/RUN_ID/artifacts/WEIGHT_ID
+```
 
 ## 추가 평가 프롬프트 25개 · 비활성 보관
 
