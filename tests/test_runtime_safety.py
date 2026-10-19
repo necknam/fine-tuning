@@ -20,10 +20,34 @@ import dashboard_store as store
 import runpod_bridge as bridge
 import runpod_service as service
 import recovery
+import ai_evaluation as ai
 from runpod_client import RunPodClient, JupyterHTTPError
 
 
 class RuntimeSafety(unittest.TestCase):
+    def test_strict_judge_start_stage_and_grounded_evidence(self):
+        request={'task':'generate_roadmap','start_stage':2,'duration_weeks':4,'weekly_hours':3,'budget_krw':50000,'resources':[]}
+        answer={'stages':[{'stage':1,'hours':2,'cost_krw':0,'resource_ids':[],'activity':'질문 작성'},
+                          {'stage':2,'hours':10,'cost_krw':0,'resource_ids':[]}], 'total_hours':12,'total_cost_krw':0}
+        report={'messages':[{'role':'user','content':json.dumps(request,ensure_ascii=False)}],
+                'tuned':{'text':json.dumps(answer,ensure_ascii=False)}}
+        review={key:{'score':4,'reason':'검토 근거','evidence':['질문 작성']} for key in ai.DIMENSIONS}
+        review['revision']={'score':None,'reason':'수정 요청 없음','evidence':[]}
+        review.update(summary='평가',issues=[])
+        adjusted,changes=ai.apply_strict_checks(review,report)
+        self.assertEqual(adjusted['goal_fit']['score'],2)
+        self.assertEqual(adjusted['constraints']['score'],4, 'Start-stage violation belongs to goal fit')
+        self.assertEqual(review['goal_fit']['score'],4, 'Preserve raw judge output')
+        self.assertTrue(any(change['criterion']=='goal_fit' for change in changes))
+        request['task']='revise_roadmap'
+        report['messages'][0]['content']=json.dumps(request)
+        adjusted,_=ai.apply_strict_checks(review,report)
+        self.assertEqual(adjusted['goal_fit']['score'],4, 'Preserved completed history is not a new-start violation')
+        review['resources']['evidence']=['답변에 없는 만들어낸 인용']
+        adjusted,_=ai.apply_strict_checks(review,report)
+        self.assertEqual(adjusted['resources']['score'],3)
+        self.assertIn('evidence',ai.schema()['properties']['goal_fit']['required'])
+
     def test_new_production_directories_and_immutable_files(self):
         nodes = {'workspace/qwen_factory': {'type': 'directory'}}
         client = RunPodClient('https://example.invalid', 'test')

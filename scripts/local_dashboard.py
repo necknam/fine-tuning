@@ -897,7 +897,7 @@ with review_tab:
                     ai_metrics[0].metric("AI 평가 완료",f"{len(ai_entries)} / {len(group['cases'])}")
                     ai_metrics[1].metric("사람 평균",f"{human_live['average']:.2f} / 5" if human_live["average"] is not None else "평가 전")
                     ai_metrics[2].metric("AI 평균 · 사람 점수와 별개",f"{sum(values)/len(values):.2f} / 5" if values else "평가 전")
-                    st.caption("평가 모델: "+judge_model+" · 엄격 기준 v2 · 같은 기준의 결과만 재사용하며 사람 점수와 별도로 저장합니다.")
+                    st.caption("평가 모델: "+judge_model+" · 엄격 기준 v3 · 원문 근거·시작 단계 검증 · 같은 기준의 결과만 재사용하며 사람 점수와 별도로 저장합니다.")
                     states=ai_evaluation.queue_states(ROOT,weight,group)
                     failed=[(case,state[1]) for case,state in states.items() if state[0]=="FAILED"]
                     processing=sum(state[0]=="RUNNING" for state in states.values())

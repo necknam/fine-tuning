@@ -205,7 +205,7 @@ def render(root, weight, group):
     rows += ["## 사람·AI 평균 비교","","| 평가 | 평균 | 평가 건수 |","| --- | --- | --- |",
              f"| 사람 | {human_average} | {summary['rated']}/{summary['total']} |",
              f"| AI | {ai_average} | {ai['rated']}/{ai['total']} |","",
-             "AI 모델: "+ai['model'],"각 입력을 동일 비중으로 평균하며 미평가·판단 불가 점수는 제외합니다. 사람과 AI 점수는 합산하지 않습니다.",""]
+             "AI 모델: "+ai['model'],"AI 평가 기준: "+ai_evaluation.RUBRIC_VERSION,"각 입력을 동일 비중으로 평균하며 미평가·판단 불가 점수는 제외합니다. 사람과 AI 점수는 합산하지 않습니다.",""]
     for case,(path,d) in sorted(group["cases"].items()):
         rows += [f"## 입력 {case+1}","","### 입력","","```json",json.dumps(d["messages"],ensure_ascii=False,indent=2),"```",""]
         for key,name in (("base","기본 모델"),("tuned","어댑터 적용")):
@@ -217,7 +217,7 @@ def render(root, weight, group):
             rows += ["AI 평균: "+score,"",entry["review"]["summary"],"", "| 항목 | 점수 | 근거 |","| --- | --- | --- |"]
             for name,label in ai_evaluation.DIMENSIONS.items():
                 item=entry["review"][name]
-                reason=item["reason"].replace("|","\\|").replace("\n"," ")
+                reason=(item["reason"]+(' · 원문 인용: '+ ' / '.join(item.get('evidence',[])) if item.get('evidence') else '')).replace("|","\\|").replace("\n"," ")
                 rows.append(f"| {label} | {item['score'] if item['score'] is not None else '해당 없음'} | {reason} |")
             rows += ["",*["- "+issue for issue in entry["review"]["issues"]],""]
         else:
