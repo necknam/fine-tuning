@@ -5,7 +5,9 @@ import app_settings
 from runpod_client import RunPodClient
 
 SERVICE_FILES = ('app_settings.py','dashboard_store.py','human_reports.py',
-                 'ai_evaluation.py','runpod_service.py','db_registry.py','prepare_data.py')
+                 'ai_evaluation.py','runpod_service.py','db_registry.py','prepare_data.py',
+                 'runpod_bridge.py','control_pipeline.py','compare_factory_sample.py',
+                 'runpod_factory_sample.py','factory_state.py','runpod_client.py','recovery.py')
 
 def reconnect(root, state, force=False):
     if not force and time.time()-state.get('reconnect_attempt_at',0)<60:
@@ -42,23 +44,23 @@ def deploy_service(root,client,auto_ai=True):
     if not env.get('DATABASE_URL'):
         raise ValueError('복구 서비스에 DATABASE_URL 설정이 필요합니다.')
     # execute uses store_history=False; values remain in process memory, not files.
-    client.execute('import os, sys, importlib\n'
-        "sys.path.insert(0, '/workspace/qwen_factory/scripts')\n"
-        +'os.environ.update('+repr(env)+')\n'
-        +'import psycopg, dashboard_store, ai_evaluation, runpod_service\n'
-        +'dashboard_store.pg(runpod_service.ROOT).close()\n'
-        +'importlib.reload(runpod_service)\n'
-        +'runpod_service.start(auto_ai='+repr(bool(auto_ai))+')\n')
+    client.execute('import os\nos.environ.update('+repr(env)+')\n')
+    client.call("(__import__('dashboard_store').pg(__import__('runpod_service').ROOT).close(), "
+                +"__import__('runpod_service').start(auto_ai="+repr(bool(auto_ai))+"))[1]")
 
 def ensure_service(root,state,auto_ai=True):
+    import hashlib
     client=state.get('client')
     if client is None:return
-    marker=(client.kernel_id,bool(auto_ai))
+    version=hashlib.sha256(b''.join((Path(root)/'scripts'/name).read_bytes() for name in (
+        'runpod_service.py','runpod_bridge.py','dashboard_store.py','human_reports.py',
+        'ai_evaluation.py','app_settings.py'))).hexdigest()
+    marker=(client.kernel_id,bool(auto_ai),version)
     if state.get('recovery_service_ready')==marker:
         if time.time()-state.get('recovery_service_checked_at',0)<60:return
         result=client.call("__import__('runpod_service').status()")
         state['recovery_service_checked_at']=time.time()
-        if result.get('state')=='RUNNING':return
+        if result.get('state')=='RUNNING' and not result.get('heartbeat_delayed') and result.get('version')==version:return
     deploy_service(root,client,auto_ai)
     state['recovery_service_ready']=marker
     state['recovery_service_checked_at']=time.time()

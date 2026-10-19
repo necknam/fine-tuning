@@ -127,19 +127,13 @@ def last_history():
 
 
 def persist_history(overview):
-    old=last_history()
-    jobs={j["job_id"]:dict(j,stale=True) for j in old.get("jobs",[])}
-    for item in overview["jobs"]:
-        safe=json.loads(redact(json.dumps(item,ensure_ascii=False)))
-        safe["stale"]=False
-        jobs[item["job_id"]]=safe
-    data={"last_sync":datetime.now(timezone.utc).isoformat(),"jobs":sorted(jobs.values(),key=lambda j:j["created_at"])}
+    safe=json.loads(redact(json.dumps(overview["jobs"],ensure_ascii=False)))
+    data=dashboard_store.merge_history(ROOT,safe,overview.get("observed_at"))
     path=ROOT/"reports/control_history.json"
     path.parent.mkdir(parents=True,exist_ok=True)
-    temporary=path.with_suffix(".tmp")
+    temporary=path.with_name(path.name+"."+uuid.uuid4().hex+".tmp")
     temporary.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8")
     temporary.replace(path)
-    dashboard_store.persist(ROOT,path)
     return data
 
 

@@ -21,7 +21,7 @@ def inside(relative, prefix):
 
 
 def atomic(path, data):
-    temporary = path.with_suffix(".tmp")
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(path)
 
@@ -36,9 +36,13 @@ def process_stamp(pid):
 def alive(pid, stamp=None):
     try:
         os.kill(pid, 0)
-        return stamp is None or process_stamp(pid) == stamp
-    except (ProcessLookupError, PermissionError):
+        fields = Path(f"/proc/{pid}/stat").read_text().rpartition(")")[2].split()
+        return fields[0] not in ("Z", "X") and (stamp is None or fields[19] == stamp)
+    except (ProcessLookupError, FileNotFoundError, IndexError):
         return False
+    except PermissionError:
+        # Unknown is busy, not permission to launch another GPU job.
+        return True
 
 
 def status():
@@ -135,10 +139,21 @@ def promote(job_id, priority=None):
         return record
 
 
+def gpu_lock():
+    guard = (JOBS/"gpu.lock").open("a")
+    try:
+        fcntl.flock(guard, fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError:
+        guard.close()
+        return None
+    return guard
+
+
 def run(job_id):
     if not re.fullmatch(r"[0-9_]+[a-f0-9]{8}",job_id):
         raise ValueError("Invalid job ID")
     # Each waiting worker retains its submission credentials in memory, never on disk.
+    gpu_guard = None
     while True:
         selected=None
         with (JOBS/"submit.lock").open("a") as guard:
@@ -146,12 +161,18 @@ def run(job_id):
             records=status()
             queued=sorted((j for j in records if j["state"]=="QUEUED"),
                           key=lambda j:(j.get("priority",10),j["created_at"],j["job_id"]))
-            if queued and queued[0]["job_id"]==job_id and not any(j["state"]=="RUNNING" for j in records):
+            if (queued and queued[0]["job_id"]==job_id and not any(j["state"]=="RUNNING" for j in records)
+                    and (gpu_guard := gpu_lock()) is not None):
                 selected=queued[0]
                 folder=JOBS/job_id
-                with (folder/"job.log").open("ab") as log:
-                    child=subprocess.Popen(selected["argv"],cwd=ROOT,stdin=subprocess.DEVNULL,
-                                           stdout=log,stderr=subprocess.STDOUT)
+                try:
+                    with (folder/"job.log").open("ab") as log:
+                        env = dict(os.environ, QF_GPU_LOCK_FD=str(gpu_guard.fileno()))
+                        child=subprocess.Popen(selected["argv"],cwd=ROOT,stdin=subprocess.DEVNULL,
+                            stdout=log,stderr=subprocess.STDOUT,env=env,pass_fds=(gpu_guard.fileno(),))
+                except BaseException:
+                    gpu_guard.close()
+                    raise
                 selected.update(state="RUNNING",pid=child.pid,pid_stamp=process_stamp(child.pid),started_at=time.time())
                 atomic(folder/"job.json",selected)
         if selected:
@@ -162,6 +183,9 @@ def run(job_id):
         atomic(folder/"job.json",dict(selected,state="SUCCEEDED" if code==0 else "FAILED",exit_code=code,finished_at=time.time()))
     except Exception as error:
         atomic(folder/"job.json",dict(selected,state="FAILED",error=type(error).__name__))
+    finally:
+        # Do not LOCK_UN: descendants retain the same lock after a parent dies.
+        gpu_guard.close()
 
 
 def overview():
@@ -171,7 +195,8 @@ def overview():
         snapshots.append(dict(run_id=m["run_id"], weight_id=m["weight_id"], epoch=m["trained_epoch"],
                               adapter=str(f.parent.relative_to(ROOT))))
     configurations = {f.parent.name: f.read_text() for f in (ROOT/"outputs").glob("factory_*/*/config.yaml")}
-    return dict(jobs=status(), snapshots=snapshots, configurations=configurations,
+    observed_at = time.time()
+    return dict(jobs=status(), observed_at=observed_at, snapshots=snapshots, configurations=configurations,
                 reports=[str(f.relative_to(ROOT)) for f in (ROOT / "reports").glob("smoke_compare_*/comparison.json")],
                 scripts=[f.name for f in (ROOT / "scripts").glob("*.py")])
 

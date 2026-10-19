@@ -36,6 +36,8 @@ class RunPodClient:
             raise ValueError("Enter the Jupyter login token")
         self.token = token
         self.remote_path = remote_path.strip("/")
+        if not self.remote_path or "\\" in self.remote_path or any(part in ('', '.', '..') for part in self.remote_path.split('/')):
+            raise ValueError("Use a project-relative Jupyter project path")
         self.cookies=http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(NoRedirect(),urllib.request.HTTPCookieProcessor(self.cookies))
         self.opener.addheaders=[("User-Agent",CLIENT_AGENT),("Accept","text/html,application/json;q=0.9,*/*;q=0.8")]
@@ -93,11 +95,35 @@ class RunPodClient:
             raise RuntimeError("Could not reach Jupyter; check Pod status and network") from None
 
     def contents(self, relative, content=None):
+        parts = relative.split("/")
+        if not relative or any(part in ("", ".", "..") for part in parts) or "\\" in relative:
+            raise ValueError("Use a project-relative file path")
         path = self.remote_path + "/" + relative
         endpoint = "/api/contents/" + urllib.parse.quote(path, safe="/")
         if content is None:
             return self.api(endpoint + "?content=1&format=text")
+        self.ensure_directory("/".join(parts[:-1]))
         return self.api(endpoint, {"type": "file", "format": "text", "content": content}, "PUT")
+
+    def ensure_directory(self, relative):
+        """Create parents in order; concurrent creators must still leave a directory."""
+        parts = relative.split("/") if relative else []
+        if any(part in ('', '.', '..') for part in parts) or "\\" in relative:
+            raise ValueError("Use a project-relative directory path")
+        for index in range(1, len(parts)+1):
+            path = self.remote_path + "/" + "/".join(parts[:index])
+            endpoint = "/api/contents/" + urllib.parse.quote(path, safe="/")
+            try:
+                model = self.api(endpoint + "?content=0")
+            except FileNotFoundError:
+                try:
+                    model = self.api(endpoint, {"type": "directory"}, "PUT")
+                except JupyterHTTPError as error:
+                    if error.code not in (400, 409, 500):
+                        raise
+                    model = self.api(endpoint + "?content=0")
+            if model.get("type") != "directory":
+                raise ValueError("Remote parent is not a directory")
 
     def connect(self):
         endpoint="/api/contents/" + urllib.parse.quote(self.remote_path, safe="/") + "?content=0"
@@ -169,11 +195,18 @@ class RunPodClient:
             ws.close()
 
     def call(self, expression):
-        code = "import sys, json, importlib\n" \
-            + "sys.path.insert(0, '/workspace/qwen_factory/scripts')\n" \
+        project = "/" + self.remote_path
+        control = "import sys, json, importlib\n" \
+            + "sys.path.insert(0, " + repr(project + '/scripts') + ")\n" \
             + "import runpod_bridge\nimportlib.reload(runpod_bridge)\n" \
             + "try:\n    print('QF_RESULT=' + json.dumps({'ok': True, 'value': " + expression + "}, ensure_ascii=False))\n" \
             + "except Exception as e:\n    print('QF_RESULT=' + json.dumps({'ok': False, 'error': str(e)}))\n"
+        # The Jupyter kernel is only a transport; dependencies belong to the Pod venv.
+        code = "import subprocess\n" \
+            + "_qf = subprocess.run(" + repr([project+'/.venv-runpod/bin/python', '-c', control]) \
+            + ", cwd=" + repr(project) + ", capture_output=True, text=True, timeout=35)\n" \
+            + "print(_qf.stdout)\n" \
+            + "if _qf.returncode: raise RuntimeError('RunPod control environment failed; check .venv-runpod')\n"
         output = self.execute(code)
         for line in reversed(output.splitlines()):
             if line.startswith("QF_RESULT="):

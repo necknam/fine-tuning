@@ -27,7 +27,12 @@ def main():
     is_sample=sample_mode(cfg)
     plan = build_plans(root, config, is_sample)[0]
     def execute(script, *flags):
-        subprocess.run([sys.executable, "-u", "scripts/"+script, "--config", args.config, *flags], cwd=root, check=True)
+        options = {}
+        if os.environ.get("QF_GPU_LOCK_FD"):
+            descriptor = int(os.environ["QF_GPU_LOCK_FD"])
+            os.fstat(descriptor)
+            options["pass_fds"] = (descriptor,)
+        subprocess.run([sys.executable, "-u", "scripts/"+script, "--config", args.config, *flags], cwd=root, check=True, **options)
     if not args.resume_existing and not args.evaluate_only:
         print("PIPELINE: register", flush=True)
         print("진행 안내: 1/3 · 실험 설정을 등록합니다. 아직 학습은 시작되지 않았습니다.", flush=True)

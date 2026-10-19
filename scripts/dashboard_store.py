@@ -106,6 +106,35 @@ def persist_many(root, paths):
             db.execute('INSERT INTO documents(path,content) VALUES (%s,%s) ON CONFLICT(path) DO UPDATE SET content=EXCLUDED.content,updated_at=now() WHERE documents.content IS DISTINCT FROM EXCLUDED.content',(key,content))
         db.commit()
 
+
+def merge_history(root, observed_jobs, observed_at=None, documents=None):
+    """All UI/service writers merge against the latest DB row under one lock."""
+    import time
+    from datetime import datetime, timezone
+    observed_at = time.time() if observed_at is None else float(observed_at)
+    entries = dict(documents or {})
+    if any(not allowed(key) for key in entries):
+        raise ValueError('허용되지 않은 DB 문서 경로')
+    safe = json.loads(app_settings.redact(root, json.dumps(observed_jobs, ensure_ascii=False)))
+    with closing(pg(root)) as db:
+        db.execute('SELECT pg_advisory_xact_lock(67429403)')
+        row = db.execute("SELECT content FROM documents WHERE path='reports/control_history.json'").fetchone()
+        old = json.loads(row[0]) if row else {'jobs': []}
+        jobs = {job['job_id']: dict(job, stale=True) for job in old.get('jobs', [])}
+        for job in safe:
+            previous = jobs.get(job['job_id'], {})
+            if observed_at >= previous.get('_observed_at', 0):
+                jobs[job['job_id']] = dict(job, stale=False, _observed_at=observed_at)
+        previous_sync = old.get('last_sync')
+        previous_time = datetime.fromisoformat(previous_sync).timestamp() if previous_sync else 0
+        history = {'last_sync': datetime.fromtimestamp(max(observed_at, previous_time), timezone.utc).isoformat(),
+                   'jobs': sorted(jobs.values(), key=lambda job: job['created_at'])}
+        entries['reports/control_history.json'] = json.dumps(history, ensure_ascii=False)
+        for key, content in entries.items():
+            db.execute('INSERT INTO documents(path,content) VALUES (%s,%s) ON CONFLICT(path) DO UPDATE SET content=EXCLUDED.content,updated_at=now() WHERE documents.content IS DISTINCT FROM EXCLUDED.content', (key, content))
+        db.commit()
+    return history
+
 def hydrate(root, force=False, section="all"):
     import time,hashlib,uuid
     root=Path(root).resolve()

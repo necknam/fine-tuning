@@ -26,29 +26,34 @@
 평가 전용 경로의 학습 미호출, 학습/검증 요청 누출 차단, 기존 샘플 identity 호환,
 엄격 점수 상한, 전체 너비 보고서, 변경 문서만 복원, 입력25개 단일 DB 조회,
 깨끗한 Git 체크아웃의 입장/지연 탭 실행/기본 자동 갱신 OFF/업로드 전 등록 차단.
-테스트는 모의 GPU/API와 격리된 데이터로 수행하며 실제 재학습을 시작하지 않았습니다.
-RunPod가 꺼져 있어 실제 GPU 학습 및 독립 복구 서비스의 실제 재기동은 미검증입니다.
+초기 테스트는 모의 GPU/API와 격리된 데이터로 수행했습니다.
+2026-10-19 RunPod를 켠 후 Linux 회귀 검사 9개, 실제 Jupyter 신규 폴더 업로드, 독립 서비스 기동을 확인했고 별도 샘플 실험을 진행 중입니다. 아래 최종 검증 기록을 확인하세요.
 코드가 준비됐다는 사실과 실제 Pod 검증 완료를 구분하세요.
 구형 샘플의 미완료 체크포인트는 학습 코드 해시가 바뀌면 안전상 자동 재개하지 못할 수 있습니다.
 기존 완료 가중치의 조회/평가와 점수 이력은 유지합니다.
 
-## 파일 경량화 후보 (자동 삭제하지 않음)
+## 2026-10-19 파일 정리 완료
 
-실측 기준 로컬 .venv-dashboard 약333MB, reports 약1.3MB, docs 약0.1MB입니다.
-용량 대부분은 코드 파일 수가 아니라 Python 패키지입니다. 캐시/가상환경/가중치는 이미 Git에서 제외합니다.
-
-- `.venv-dashboard`: Miniforge 환경 하나로 실행을 통일하고 start_dashboard.ps1을 바꾼 뒤 제거 가능. 현재 스크립트는 이 폴더를 다시 만들므로 먼저 실행 방식을 변경해야 합니다.
-- `.cache/`, `__pycache__/`, `.idea/`: 캐시/개인 IDE 설정으로 정리 가능. Git 제외 상태입니다.
-- `outputs/legacy_requirements/`, `outputs/before_local_dashboard/`, `outputs/before_production_mode/`: 예전 파일 백업. 복구가 필요 없으면 별도 보관 후 정리 가능.
-- `scripts/compare_smoke.py`: 구형 단일 입력 비교 도구. 현재 대시보드는 compare_factory_sample.py를 사용하므로 구형 실험을 더 열지 않으면 보관 폴더로 이동 가능.
-- `scripts/runpod_smoke.py`, `scripts/check_connections.py`, `scripts/preflight_hf.py`: 환경/접속/모델 확인 도구. 역할을 한 점검 명령으로 통합한 뒤 정리 가능. runpod_smoke.py는 새 Pod 안내에서 사용하므로 지금 바로 삭제하면 안내도 바꿔야 합니다.
-- `configs/hyperparameters.sample.yaml`, `configs/hyperparameters.yaml`: 현재 대시보드는 pinned 파일을 기준으로 실행합니다. CLI로 별도 사용하지 않으면 기준 파일 하나로 정리할 후보입니다.
-- `docs/verification_2026-10-17.json`, `docs/neon_migration_verification.json` 및 과거 HTML: 운영 기능에 필수는 아닌 검증 증거/기록입니다. 문서 보관 위치로 모을 수 있습니다.
-- `requirements.txt`와 `requirements-runpod.txt`는 합치지 않습니다. Cloud에 GPU 패키지를 설치하지 않도록 분리해야 합니다.
-- `reports/` 전체, 등록 실행 설정, HF 가중치는 일괄 삭제하지 않습니다. 캐시와 보존해야 할 옛 결과/백업이 섞여 있습니다.
+- `.venv-dashboard`는 사용자 요청으로 유지했습니다. Miniforge 전환과 실행 스크립트 변경 후 별도로 정리합니다.
+- `.cache/`, `__pycache__/`, `.idea/`를 정리했습니다. 캐시는 실행 중 다시 생성될 수 있습니다.
+- 이전 outputs 백업 4개, 미사용 `compare_smoke.py`, 미사용 hyperparameters 설정 2개와 Codespaces 전용 `.devcontainer/`는 `reports/backups/project_cleanup_20261019.zip` 하나에 원래 상대 경로로 보관하고 원래 위치에서 제거했습니다. ZIP 무결성과 모든 원본 바이트를 검증한 뒤 정리했습니다. ZIP은 Git 제외 상태이며 로컬 복원용입니다.
+- 현재 설정은 `configs/hyperparameters.sample.pinned.yaml`을 사용합니다. 새 Pod 점검 스크립트, 업로드 묶음, 데이터, 보고서, 실행 설정, 가중치, 기존 검증 문서는 유지했습니다.
+- `requirements.txt`와 `requirements-runpod.txt`는 Cloud/GPU 환경 구분을 위해 유지합니다.
 
 ## 다음 실제 확인
 
 배포 후 샘플/실제 선택, 가로 잘림 없는 보고서, 자동 갱신 기본 OFF, 엄격 v2 표시를 확인합니다.
 Pod를 켜면 연결 후 독립 서비스 기동과 소수 입력의 실제 실행·복구를 검증합니다.
 실제 데이터 학습 시작은 사용자가 데이터를 준비하고 새 실험을 등록할 때 수행합니다.
+
+
+## 2026-10-19 리뷰 결함 수정
+
+1. 원격 데이터 부모 폴더 자동 생성과 경합 처리. 기존 파일이 다른 경우 덮어쓰기 차단은 유지합니다.
+2. 대기열 GPU 잠금을 파이프라인과 학습/비교 자식까지 FD로 상속하여 고아 GPU 프로세스가 남아도 다음 실행을 막습니다.
+3. UI/수집기 작업 이력을 동일한 Neon 트랜잭션 잠금 아래 병합하고 관측 시각으로 옛 상태의 덮어쓰기를 차단합니다.
+4. Linux 좀비 상태 검사, 서비스 heartbeat 지연 경고, 기존 서비스 잠금 확인으로 중복 시작을 차단합니다. 코드가 바뀌면 정상 응답 중인 CPU 서비스만 교체합니다.
+5. 실제 재시작 환경에서 Jupyter 시스템 Python의 dotenv 누락을 확인하여 제어 명령을 RunPod 가상환경의 별도 프로세스로 실행하도록 수정했습니다.
+
+회귀 검사는 tests/test_runtime_safety.py 한 파일에 모았습니다. Linux 9개 모두 통과했고, Windows에서는 Linux 잠금 상속 검사만 건너뜁니다. 실제 Neon 동시 병합 검사도 격리 스키마에서 통과 후 스키마를 제거했습니다. 보고서 배치/공용 비밀번호 UI AppTest도 통과했습니다.
+샘플 통합 실행 ID/결과는 로컬 reports/runtime_safety_20261019.json을 참조합니다. 실제 데이터 학습이 아닙니다. 엄격 AI 기준은 growpath_judge_v2_strict를 유지합니다.
