@@ -1,0 +1,13 @@
+# RunPod Linux only. Use the CUDA PyTorch template.
+# torch==2.8.0 accepts the preinstalled 2.8.0+cu128 build.
+torch==2.8.0
+transformers==5.20.0
+peft==0.21.2
+accelerate==1.15.0
+bitsandbytes==0.50.2
+huggingface_hub==2.2.0
+SQLAlchemy==2.1.4
+psycopg[binary]==3.3.6
+PyYAML==6.0.3
+python-dotenv==1.2.4
+safetensors==0.8.0

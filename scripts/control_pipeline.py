@@ -1,0 +1,105 @@
+"""Run a registered sample recipe and generate all held-out comparisons serially."""
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+import yaml
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, select
+from db_registry import build_plans, runs, artifacts
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--resume-existing", action="store_true")
+    parser.add_argument("--evaluate-only", action="store_true", help="Use uploaded adapters without invoking training")
+    parser.add_argument("--case-limit", type=int, help="Limit cases per epoch for a GPU verification run")
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    load_dotenv(root/".env")
+    config = (root/args.config).resolve()
+    config.relative_to(root/"configs")
+    cfg = yaml.safe_load(config.read_text(encoding="utf-8-sig"))
+    plan = build_plans(root, config, True)[0]
+    def execute(script, *flags):
+        subprocess.run([sys.executable, "-u", "scripts/"+script, "--config", args.config, *flags], cwd=root, check=True)
+    if not args.resume_existing and not args.evaluate_only:
+        print("PIPELINE: register", flush=True)
+        print("진행 안내: 1/3 · 실험 설정을 등록합니다. 아직 학습은 시작되지 않았습니다.", flush=True)
+        execute("db_registry.py", "--sample", "--register")
+    engine = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
+    try:
+        with engine.connect() as c:
+            record = c.execute(select(runs).where(runs.c.config_hash==plan["config_hash"])).mappings().one()
+            run_id = record["run_id"]
+        if not args.evaluate_only:
+            print("PIPELINE: train or resume", flush=True)
+            print("진행 안내: 2/3 · 모델을 불러온 뒤 학습합니다. 4·5에포크 가중치를 각각 저장하고 업로드합니다.", flush=True)
+        else:
+            print("PIPELINE: evaluate existing adapters",flush=True)
+        output = root/"outputs/factory_sample"/run_id
+        if (args.resume_existing or args.evaluate_only) and not output.is_dir():
+            raise ValueError("Existing run files are missing; restore the original run directory before resuming")
+        if not args.evaluate_only:
+            execute("runpod_factory_sample.py", "--execute", *(["--resume"] if output.exists() else []))
+        else:
+            print("진행 안내: 재학습 없이 저장된 가중치의 BF16 평가만 수행합니다.",flush=True)
+        with engine.connect() as c:
+            snapshots = [dict(r) for r in c.execute(select(artifacts).where(artifacts.c.run_id==run_id)
+                         .order_by(artifacts.c.trained_epoch)).mappings()]
+    finally:
+        engine.dispose()
+    if len(snapshots)!=2 or {snapshot["trained_epoch"] for snapshot in snapshots}!={4,5}:
+        raise ValueError("Expected exactly the registered epoch-4 and epoch-5 artifacts")
+    test_path=(root/cfg["data"].get("test_file","data/sample/eval/test.jsonl")).resolve()
+    test_path.relative_to(root/"data/sample")
+    cases = [json.loads(s) for s in test_path.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
+    if not cases:
+        raise ValueError("Evaluation dataset is empty")
+    print(f"진행 안내: 학습·업로드 완료. 3/3 · {len(cases)}개 입력의 답변을 에포크별로 생성합니다.", flush=True)
+    if args.case_limit is not None and args.case_limit<1:
+        raise ValueError("case-limit must be positive")
+    indices=range(min(len(cases),args.case_limit)) if args.case_limit else range(len(cases))
+    for snapshot in snapshots:
+        if snapshot["status"] not in ("TRAINED", "EVALUATED"):
+            raise RuntimeError("Snapshot upload not complete")
+        adapter = output/"artifacts"/snapshot["weight_id"]
+        pending=[]
+        for index in indices:
+            # Avoid re-generating a completed comparison for the same artifact and conditions.
+            matching = False
+            for f in (root/"reports").glob("smoke_compare_*/comparison.json"):
+                d = json.loads(f.read_text(encoding="utf-8"))
+                if (d.get("factory_manifest",{}).get("weight_id")==snapshot["weight_id"]
+                    and d.get("case_index")==index and d.get("generation",{}).get("max_new_tokens")==2048
+                    and d.get("generation",{}).get("do_sample") is False
+                    and d.get("generation",{}).get("num_beams")==1
+                    and d.get("generation",{}).get("use_cache") is True
+                    and d.get("model")==cfg["model"]
+                    and d.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
+                    and d.get("test_sha256")==__import__("hashlib").sha256(test_path.read_bytes()).hexdigest()
+                    and not d["tuned"]["hit_token_limit"]):
+                    matching=True
+                    break
+            if matching:
+                print(f"진행 안내: {snapshot['trained_epoch']}에포크 · 입력 {index+1}/{len(cases)} · 기존 답변을 사용합니다.", flush=True)
+                continue
+            pending.append(index)
+        if pending:
+            print(f"PIPELINE: compare epoch={snapshot['trained_epoch']} cases={len(pending)}",flush=True)
+            print(f"진행 안내: {snapshot['trained_epoch']}에포크 · BF16 모델을 한 번 로딩해 미완료 {len(pending)}개를 순서대로 생성합니다.",flush=True)
+            execute("compare_factory_sample.py", "--adapter", str(adapter), "--case-indices", *map(str,pending), "--max-new-tokens", "2048")
+    print("진행 안내: 답변 생성 완료. 로컬 보고서를 동기화한 뒤 입력별로 1~5점 평가하세요.", flush=True)
+    print("PIPELINE COMPLETE: ready for human evaluation", flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:
+        print("PIPELINE FAILED: " + type(error).__name__ + "; inspect the preceding stage log", flush=True)
+        sys.exit(1)

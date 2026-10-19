@@ -1,0 +1,7 @@
+# Local Miniforge bootstrap. Install requirements.txt after activation.
+name: qwen-factory
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip

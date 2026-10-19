@@ -1,0 +1,45 @@
+{
+  "purpose": "synthetic wiring test only; not training-quality evidence",
+  "seed": 42,
+  "split_group": "scenario_id",
+  "splits": {
+    "train": {
+      "rows": 54,
+      "scenario_ids": [
+        "sample_015",
+        "sample_005",
+        "sample_010",
+        "sample_014",
+        "sample_016",
+        "sample_019",
+        "sample_007",
+        "sample_013",
+        "sample_018",
+        "sample_011",
+        "sample_002",
+        "sample_012",
+        "sample_003",
+        "sample_017",
+        "sample_008",
+        "sample_009",
+        "sample_001",
+        "sample_004"
+      ],
+      "sha256": "c38ce088a9c5fe3c1efa15cc366d5f151309d2b34aa96e76aff4f54942a76154"
+    },
+    "validation": {
+      "rows": 3,
+      "scenario_ids": [
+        "sample_020"
+      ],
+      "sha256": "38199c01fbbb6fab967ef66a583253ecb40c69070ca845b7c0d4a9764d66a502"
+    },
+    "test": {
+      "rows": 3,
+      "scenario_ids": [
+        "sample_006"
+      ],
+      "sha256": "af952e0d41e044e923e9a3bc67cfae39d26737b5c515fb18811f3a59d0da0cee"
+    }
+  }
+}

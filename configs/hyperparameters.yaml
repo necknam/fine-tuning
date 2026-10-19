@@ -1,0 +1,246 @@
+# =====================================================================
+# Qwen 파인튜닝 공장 — 하이퍼파라미터 설정
+# 실행 환경: A100 PCIe 80GB × 1 / 4비트 QLoRA
+# =====================================================================
+#
+# [수정 방법]
+# 1. YAML 들여쓰기는 탭 대신 공백을 사용합니다.
+# 2. 처음에는 한 실험에서 하이퍼파라미터 하나만 바꿉니다.
+# 3. 새로운 비교 실험은 experiments 아래에 항목을 추가합니다.
+# 4. recipe_name은 실험 이름이며, 이름만 바꾸면 학습 조건은 같습니다.
+#
+# [자주 수정하는 항목]
+# data.train_file                      : 학습 데이터 경로
+# data.validation_file                 : 검증 데이터 경로
+# lora.r                               : LoRA 용량
+# lora.lora_alpha                      : LoRA 배율
+# lora.lora_dropout                    : 드롭아웃 비율
+# training.learning_rate               : 학습률
+# training.num_train_epochs            : 총 학습 에포크
+# training.max_length                  : 입력+정답의 최대 토큰 길이
+# training.per_device_train_batch_size : 한 번에 처리할 샘플 수
+# training.gradient_accumulation_steps : 업데이트 전 누적 횟수
+# artifacts.save_epochs                : 평가용 어댑터 저장 에포크
+#
+# [주의]
+# 이 파일은 작업지시서입니다. 읽고 실행하는 학습 코드가 별도로 필요합니다.
+# 아래 시작값의 실행 가능 여부와 속도는 짧은 시험 학습으로 확인합니다.
+# HF_TOKEN, DATABASE_URL 등의 비밀값은 이 파일 대신 .env에 보관합니다.
+# =====================================================================
+
+schema_version: 1
+
+
+# =====================================================================
+# 1. 기본 모델 — 첫 시험 전까지 유지
+# =====================================================================
+model:
+  base_model_id: "Qwen/Qwen3.8-27B"
+
+  # 실제 학습 전 정확한 모델 커밋 ID로 고정합니다.
+  revision: "main"
+
+
+# =====================================================================
+# 2. 4비트 양자화 — 첫 시험 전까지 유지
+# =====================================================================
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
+
+
+# =====================================================================
+# 3. 데이터 — 실제 파일에 맞춰 수정
+# =====================================================================
+data:
+  # 모든 상대 경로는 프로젝트 폴더를 기준으로 처리합니다.
+  # 프로젝트: C:\final_team2\qwen_factory
+  train_file: "data/processed/train.jsonl"
+  validation_file: "data/processed/validation.jsonl"
+
+  # JSONL: 한 줄에 JSON 객체 하나를 저장합니다.
+  # messages 형식 예시:
+  # {"messages":[{"role":"user","content":"질문"},{"role":"assistant","content":"정답"}]}
+  format: "messages"
+
+  # 학습·검증·최종 평가 데이터를 구분한 뒤 실제 학습 개수를 입력합니다.
+  # 아직 확정되지 않았다면 null을 유지합니다.
+  # 예: expected_train_samples: 2700
+  expected_train_samples: null
+
+
+# =====================================================================
+# 4. 실험 목록
+# =====================================================================
+# 기본 실험 하나로 전체 흐름을 검증한 뒤 비교 실험을 추가합니다.
+#
+# 실험 하나:
+#   5에포크까지 한 번 학습 → 4에포크·5에포크 어댑터 각각 저장
+#
+# 실험 두 개:
+#   각 실험을 별도로 5에포크 학습 → 총 4개 어댑터 저장
+# =====================================================================
+experiments:
+
+  # -------------------------------------------------------------------
+  # 실험 1: 기본 시작값
+  # -------------------------------------------------------------------
+  - recipe_name: "baseline_r32_lr1e4"
+
+    lora:
+      # [수정] LoRA 용량. 비교 후보: 16 / 32 / 64
+      # 값이 커지면 학습 가능한 파라미터와 메모리 사용량이 증가합니다.
+      r: 32
+
+      # [수정] LoRA 배율. 처음에는 r의 2배로 시작합니다.
+      # r=16 → alpha=32 / r=32 → alpha=64 / r=64 → alpha=128
+      # 고정된 정답은 아니며, 이후 비교 실험으로 조정합니다.
+      lora_alpha: 64
+
+      # [수정] 드롭아웃 비율. 비교 후보: 0.05 / 0.10
+      # 높인다고 과적합 방지가 보장되는 것은 아닙니다.
+      lora_dropout: 0.05
+
+      bias: "none"
+
+      # 학습 코드에서 언어 모델 부분의 Linear 계층에만 적용합니다.
+      # 실제 적용 모듈 목록과 학습 파라미터 수를 시험 단계에서 확인합니다.
+      target_modules: "all-linear"
+      scope: "language_model"
+
+    training:
+      # [수정] 학습 데이터를 반복해서 보는 횟수
+      # save_epochs의 가장 큰 값 이상이어야 합니다.
+      num_train_epochs: 5
+
+      # [수정] 학습률
+      # 0.0001 = 1e-4 / 0.00005 = 5e-5
+      # 첫 비교 실험은 다른 값을 유지하고 학습률만 변경합니다.
+      learning_rate: 0.0001
+
+      # 전체 5에포크 계획을 기준으로 학습률을 점차 줄입니다.
+      # 이 실행의 4에포크 결과는 총 4에포크로 따로 학습한 결과와
+      # 학습률 스케줄이 다를 수 있습니다.
+      lr_scheduler_type: "cosine"
+
+      # 초반 전체 학습 스텝의 5% 동안 학습률을 점차 높입니다.
+      warmup_ratio: 0.05
+
+      # 가중치 감쇠 계수
+      weight_decay: 0.01
+
+      # [수정] 한 번에 GPU에서 처리하는 샘플 수
+      # 먼저 1로 시험하고 메모리 여유를 확인한 뒤 늘립니다.
+      per_device_train_batch_size: 1
+
+      # [수정] 가중치 업데이트 전에 그래디언트를 누적하는 횟수
+      gradient_accumulation_steps: 16
+
+      # GPU 1개에서 유효 배치 크기:
+      #   배치 크기 × 누적 횟수
+      #   1 × 16 = 16
+      #   2 × 8  = 16
+      #   4 × 4  = 16
+      # 유효 배치가 같아도 메모리 사용량과 실행 속도는 다릅니다.
+
+      per_device_eval_batch_size: 1
+
+      # [수정] 입력+정답+채팅 템플릿의 최대 토큰 길이
+      # 글자 수가 아닙니다. 데이터 길이 분석 후 4096 등을 검토합니다.
+      # 길이 초과 데이터의 처리 방침은 데이터 검사 단계에서 정합니다.
+      max_length: 2048
+
+      # 여러 샘플을 한 시퀀스에 묶는 기능. 첫 시험에서는 끕니다.
+      packing: false
+
+      bf16: true
+      gradient_checkpointing: true
+      optim: "paged_adamw_8bit"
+
+      # 비교 실험에서는 시드를 동일하게 유지합니다.
+      seed: 42
+      data_seed: 42
+
+      # 10번의 업데이트 스텝마다 학습 로그 기록
+      logging_steps: 10
+
+      # 매 에포크마다 별도 검증 데이터로 평가
+      eval_strategy: "epoch"
+
+    artifacts:
+      # [수정] 평가용 LoRA 어댑터를 보관할 에포크
+      # 같은 실행의 4·5에포크에 각각 다른 weight_id를 부여합니다.
+      # 이 항목은 우리가 만들 학습 코드가 처리합니다.
+      save_epochs: [4, 5]
+
+    checkpoints:
+      # 중단 후 재개용 체크포인트입니다.
+      # 위 artifacts의 평가용 어댑터와 별도로 관리합니다.
+      save_strategy: "steps"
+
+      # 50번의 업데이트 스텝마다 저장합니다.
+      # 50개 샘플 또는 50초를 의미하지 않습니다.
+      save_steps: 50
+
+      # 재개용 체크포인트는 최근 3개를 유지합니다.
+      # 별도로 보관한 4·5에포크 어댑터에는 적용하지 않습니다.
+      save_total_limit: 3
+
+      # 재개에 필요한 옵티마이저·스케줄러 등의 상태도 저장합니다.
+      save_only_model: false
+
+
+  # ===================================================================
+  # 추가 실험 샘플 — 현재 비활성화
+  # ===================================================================
+  # 사용 방법:
+  # 아래 "- recipe_name"부터 마지막 줄까지 주석 기호 "# "를 제거합니다.
+  # "- recipe_name" 앞 공백 두 칸은 유지합니다.
+  # "experiments:"를 다시 추가하지 않습니다.
+  #
+  # 비교 목적:
+  # 기본 실험과 같은 조건에서 learning_rate만 절반으로 낮춥니다.
+  # recipe_name은 구분을 위해 함께 변경했습니다.
+  #
+  # 활성화하면 별도의 5에포크 학습이 추가되어 비용이 증가합니다.
+  # ===================================================================
+
+  # - recipe_name: "baseline_r32_lr5e5"
+  #
+  #   lora:
+  #     r: 32
+  #     lora_alpha: 64
+  #     lora_dropout: 0.05
+  #     bias: "none"
+  #     target_modules: "all-linear"
+  #     scope: "language_model"
+  #
+  #   training:
+  #     num_train_epochs: 5
+  #     learning_rate: 0.00005  # 변경: 기본 실험의 절반
+  #     lr_scheduler_type: "cosine"
+  #     warmup_ratio: 0.05
+  #     weight_decay: 0.01
+  #     per_device_train_batch_size: 1
+  #     gradient_accumulation_steps: 16
+  #     per_device_eval_batch_size: 1
+  #     max_length: 2048
+  #     packing: false
+  #     bf16: true
+  #     gradient_checkpointing: true
+  #     optim: "paged_adamw_8bit"
+  #     seed: 42
+  #     data_seed: 42
+  #     logging_steps: 10
+  #     eval_strategy: "epoch"
+  #
+  #   artifacts:
+  #     save_epochs: [4, 5]
+  #
+  #   checkpoints:
+  #     save_strategy: "steps"
+  #     save_steps: 50
+  #     save_total_limit: 3
+  #     save_only_model: false
