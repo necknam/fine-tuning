@@ -25,6 +25,72 @@ from runpod_client import RunPodClient, JupyterHTTPError
 
 
 class RuntimeSafety(unittest.TestCase):
+    def test_manual_and_worker_share_paid_evaluation_lock(self):
+        import threading
+        gate=threading.Lock();entered=threading.Event();release=threading.Event()
+        results=[];errors=[]
+        class DB:
+            owned=False
+            def execute(self,query,args):
+                self.owned=gate.acquire(blocking=False)
+                return SimpleNamespace(fetchone=lambda:(self.owned,))
+            def rollback(self):
+                if self.owned:self.owned=False;gate.release()
+            def close(self):pass
+        def paid(*args):
+            entered.set()
+            if not release.wait(5):raise TimeoutError('Test synchronization timeout')
+            return {'average':3}
+        def worker():
+            try:results.append(ai.evaluate(ROOT,'weight',{},lease_owner='worker'))
+            except BaseException as exc:errors.append(exc)
+        with patch.object(ai,'settings',return_value=('test','model')), \
+             patch.object(ai,'task_id',return_value='same-task'), \
+             patch.object(ai.dashboard_store,'connect',side_effect=lambda root:DB()), \
+             patch.object(ai,'latest',return_value=None), \
+             patch.object(ai,'_evaluate_owned',side_effect=paid) as api:
+            thread=threading.Thread(target=worker);thread.start()
+            try:
+                self.assertTrue(entered.wait(5))
+                # Even an explicit paid re-evaluation cannot overlap a running one.
+                with self.assertRaises(ai.EvaluationInProgress):
+                    ai.evaluate(ROOT,'weight',{},force=True)
+            finally:
+                release.set();thread.join(5)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(errors,[])
+            self.assertEqual(results,[{'average':3}])
+            self.assertEqual(api.call_count,1)
+            self.assertFalse(gate.locked())
+
+    def test_finished_manual_result_is_reused_by_late_worker(self):
+        guard=SimpleNamespace(execute=lambda *args:SimpleNamespace(fetchone=lambda:(True,)),
+                              rollback=lambda:None,close=lambda:None)
+        entry={'average':2.75}
+        with patch.object(ai,'settings',return_value=('test','model')), \
+             patch.object(ai,'task_id',return_value='task'), \
+             patch.object(ai.dashboard_store,'connect',return_value=guard), \
+             patch.object(ai,'latest',return_value=entry), \
+             patch.object(ai,'_evaluate_owned',return_value={'average':3}) as api:
+            self.assertIs(ai.evaluate(ROOT,'weight',{},lease_owner='worker'),entry)
+            api.assert_not_called()
+            self.assertEqual(ai.evaluate(ROOT,'weight',{},force=True),{'average':3})
+            api.assert_called_once()
+
+    def test_evaluation_lock_releases_after_api_failure(self):
+        from unittest.mock import Mock
+        guard=Mock()
+        guard.execute.return_value.fetchone.return_value=(True,)
+        with patch.object(ai,'settings',return_value=('test','model')), \
+             patch.object(ai,'task_id',return_value='task'), \
+             patch.object(ai.dashboard_store,'connect',return_value=guard), \
+             patch.object(ai,'latest',return_value=None), \
+             patch.object(ai,'_evaluate_owned',side_effect=ValueError('API failure')):
+            with self.assertRaisesRegex(ValueError,'API failure'):
+                ai.evaluate(ROOT,'weight',{})
+        guard.rollback.assert_called_once()
+        guard.close.assert_called_once()
+
     def test_strict_judge_start_stage_and_grounded_evidence(self):
         request={'task':'generate_roadmap','start_stage':2,'duration_weeks':4,'weekly_hours':3,'budget_krw':50000,'resources':[]}
         answer={'stages':[{'stage':1,'hours':2,'cost_krw':0,'resource_ids':[],'activity':'질문 작성'},

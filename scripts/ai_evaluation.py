@@ -148,7 +148,34 @@ def latest(root,weight,report,model):
     return cached[1].get(case_signature(report))
 
 
-def evaluate(root,weight,report,opener=None,lease_owner=None):
+class EvaluationInProgress(ValueError):
+    """Another controller already owns this exact paid evaluation."""
+
+
+def evaluate(root,weight,report,opener=None,lease_owner=None,force=False):
+    import hashlib
+    _,model=settings(root)
+    task=task_id(weight,report,model)
+    # Transaction-scoped locks work with Neon's transaction pooler. Keep this
+    # transaction open until both the API request and result commit complete.
+    lock_id=int.from_bytes(hashlib.sha256(('ai-evaluation:'+task).encode()).digest()[:8],
+                           'big',signed=True)
+    with closing(dashboard_store.connect(root)) as guard:
+        try:
+            acquired=guard.execute('SELECT pg_try_advisory_xact_lock(?)',(lock_id,)).fetchone()[0]
+            if not acquired:
+                raise EvaluationInProgress('이 입력은 이미 AI 평가 중입니다. 결과 갱신 후 확인하세요. 추가 호출하지 않았습니다.')
+            # A manual evaluation may have finished after the worker's queue check.
+            _latest_cache.clear()
+            entry=latest(root,weight,report,model)
+            if entry is not None and not force:
+                return entry
+            return _evaluate_owned(root,weight,report,opener,lease_owner)
+        finally:
+            guard.rollback()
+
+
+def _evaluate_owned(root,weight,report,opener=None,lease_owner=None):
     key,model=settings(root)
     if not key:raise ValueError('Cloud Secrets 또는 로컬 .env에 OPENAI_API_KEY를 설정하세요.')
     if not model:raise ValueError('OPENAI_EVAL_MODEL을 입력하세요.')
@@ -199,10 +226,12 @@ def render_panel(root,weight,group,case):
     for result in check_numbers(report):st.write('• '+result)
     entry=latest(root,weight,report,model)
     action='이 입력 AI 평가 실행' if entry is None else '이 입력 AI 재평가 · 추가 호출'
-    if st.button(action,key='ai_evaluate_'+weight+'_'+str(case),disabled=not bool(key)):
+    processing=queue_states(root,weight,group).get(case,('', ''))[0]=='RUNNING'
+    if processing:st.info('이 입력은 자동 AI 평가 중입니다. 결과 갱신 후 확인하세요.')
+    if st.button(action,key='ai_evaluate_'+weight+'_'+str(case),disabled=not bool(key) or processing):
         try:
             with st.spinner('AI가 답변을 검토하고 있습니다…'):
-                entry=evaluate(root,weight,report)
+                entry=evaluate(root,weight,report,force=entry is not None)
         except ValueError as error:st.error(str(error))
     if not key:st.info('Cloud Secrets 또는 로컬 .env에 OPENAI_API_KEY를 설정하고 화면을 새로 실행하세요.')
     if entry:
@@ -345,6 +374,10 @@ def run_worker(root):
                 try:
                     evaluate(root,weight,report,lease_owner=owner)
                     state,error='DONE',''
+                except EvaluationInProgress:
+                    # The manual owner commits DONE on success. Do not overwrite
+                    # its queue state; an unfinished task recovers on the next lease.
+                    continue
                 except Exception as exc:
                     state='FAILED'
                     error=str(exc) if isinstance(exc,ValueError) else '평가 처리 오류 · 설정을 확인하고 실패 항목만 재시도하세요.'
