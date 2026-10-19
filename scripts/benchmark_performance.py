@@ -1,4 +1,4 @@
-"""GPU throughput probe with queue lock; never registers, exports or evaluates via APIs."""
+"""GPU throughput probe with queue lock; never registers runs, uploads weights or calls evaluation APIs."""
 import argparse,ast,json,math,os,sys,time
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,7 +20,7 @@ def _train(a):
     assert len(rows)==48
     model=AutoModelForImageTextToText.from_pretrained(cfg['model']['base_model_id'],quantization_config=BitsAndBytesConfig(load_in_4bit=True,bnb_4bit_quant_type='nf4',bnb_4bit_compute_dtype=torch.bfloat16,bnb_4bit_use_double_quant=True),device_map={'':0},dtype=torch.bfloat16,attn_implementation='sdpa',**common)
     model.config.use_cache=False;model.config.text_config.use_cache=False
-    model=prepare_model_for_kbit_training(model,use_gradient_checkpointing=True,gradient_checkpointing_kwargs={'use_reentrant':False})
+    model=prepare_model_for_kbit_training(model,use_gradient_checkpointing=not a.no_gc,gradient_checkpointing_kwargs={'use_reentrant':False})
     targets=[name for name,module in model.named_modules() if 'language_model' in name.split('.') and isinstance(module,(torch.nn.Linear,bnb.nn.Linear4bit)) and not name.endswith('lm_head')]
     l=hp['lora'];model=get_peft_model(model,LoraConfig(r=l['r'],lora_alpha=l['lora_alpha'],lora_dropout=l['lora_dropout'],bias='none',target_modules=targets,task_type='CAUSAL_LM'))
     def collate(batch):
@@ -34,10 +34,49 @@ def _train(a):
      def on_step_end(self,args,state,control,**kw):
       torch.cuda.synchronize();self.seconds.append(time.perf_counter()-self.start);print('BENCH_STEP',state.global_step,self.seconds[-1],flush=True)
     timer=Timing();torch.cuda.reset_peak_memory_stats()
-    args=TrainingArguments(output_dir=str(Path(a.output).parent/'scratch'),per_device_train_batch_size=a.batch,gradient_accumulation_steps=16//a.batch,max_steps=3,learning_rate=1e-4,warmup_steps=0,lr_scheduler_type='constant',bf16=True,gradient_checkpointing=True,gradient_checkpointing_kwargs={'use_reentrant':False},optim='paged_adamw_8bit',logging_steps=1,save_strategy='no',eval_strategy='no',report_to='none',remove_unused_columns=False,dataloader_num_workers=0,seed=42)
+    args=TrainingArguments(output_dir=str(Path(a.output).parent/'scratch'),per_device_train_batch_size=a.batch,gradient_accumulation_steps=16//a.batch,max_steps=3,learning_rate=1e-4,warmup_steps=0,lr_scheduler_type='constant',bf16=True,gradient_checkpointing=not a.no_gc,gradient_checkpointing_kwargs={'use_reentrant':False},optim='paged_adamw_8bit',logging_steps=1,save_strategy='no',eval_strategy='no',report_to='none',remove_unused_columns=False,dataloader_num_workers=0,seed=42)
     trainer=SequentialTrainer(model=model,args=args,train_dataset=rows,processing_class=tokenizer,data_collator=collate,callbacks=[timer]);result=trainer.train()
     assert math.isfinite(result.training_loss)
-    result={'batch':a.batch,'accumulation':16//a.batch,'effective_batch':16,'step_seconds':timer.seconds,'steady_step_seconds':sum(timer.seconds[1:])/2,'samples_per_second':32/sum(timer.seconds[1:]),'peak_allocated_gib':torch.cuda.max_memory_allocated()/2**30,'peak_reserved_gib':torch.cuda.max_memory_reserved()/2**30,'loss':result.training_loss,'trainable_parameters':sum(p.numel() for p in model.parameters() if p.requires_grad),'sample_token_lengths':[len(r['input_ids']) for r in rows],'optimized_modules_loaded':[n for n in ('causal_conv1d','fla.ops.gated_delta_rule') if n in sys.modules]}
+    trainable_count=sum(p.numel() for p in model.parameters() if p.requires_grad)
+    measured_steps=list(timer.seconds)
+    reload_check=None
+    resume_check=None
+    if a.verify_state:
+     from peft import PeftModel
+     from copy import deepcopy
+     trainer._save_checkpoint(model,trial=None)
+     checkpoint=Path(trainer.args.output_dir)/'checkpoint-3'
+     required=('trainer_state.json','optimizer.pt','scheduler.pt','rng_state.pth')
+     assert all((checkpoint/name).is_file() for name in required),list(checkpoint.iterdir())
+     resumed_args=deepcopy(trainer.args);resumed_args.max_steps=4
+     trainer.optimizer=None;trainer.lr_scheduler=None
+     resumed=SequentialTrainer(model=model,args=resumed_args,train_dataset=rows,processing_class=tokenizer,data_collator=collate)
+     resumed.train(resume_from_checkpoint=str(checkpoint))
+     assert resumed.state.global_step==4,resumed.state.global_step
+     resume_check={'checkpoint_step':3,'resumed_step':resumed.state.global_step,'full_state_files':list(required),'passed':True}
+     print('FULL_RESUME',json.dumps(resume_check),flush=True)
+     adapter=Path(a.output).parent/'reload_adapter';trainer.save_model(str(adapter));tokenizer.save_pretrained(str(adapter))
+     from peft import get_peft_model_state_dict
+     import hashlib
+     def adapter_hash(model):
+      h=hashlib.sha256()
+      for name,tensor in sorted(get_peft_model_state_dict(model).items()):
+       h.update(name.encode());h.update(str(tensor.dtype).encode());h.update(str(tuple(tensor.shape)).encode());h.update(tensor.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes())
+      return h.hexdigest()
+     weights_before=adapter_hash(model)
+     model.eval();probe={k:torch.tensor([rows[0][k]],device='cuda') for k in ('input_ids','attention_mask','labels')}
+     with torch.no_grad():before=model(**probe).loss.float().item()
+     # Unload without merging and reload the same saved PEFT adapter on the same base.
+     base=model.unload();model=PeftModel.from_pretrained(base,str(adapter),is_trainable=False);model.eval()
+     with torch.no_grad():after=model(**probe).loss.float().item()
+     weights_after=adapter_hash(model)
+     print('ADAPTER_DIAGNOSTIC',json.dumps({'weights_before':weights_before,'weights_after':weights_after,'loss_before':before,'loss_after':after}),flush=True)
+     assert weights_before==weights_after,'Saved/reloaded adapter tensor hash mismatch'
+     assert abs(before-after)<max(.005,abs(before)*.01),(before,after)
+     reload_check={'before':before,'after':after,'adapter_tensor_sha256':weights_before,'exact_adapter_tensors':weights_before==weights_after,'relative_loss_difference':abs(before-after)/abs(before),'passed':True}
+     print('ADAPTER_RELOAD',json.dumps(reload_check),flush=True)
+
+    result={'full_resume_check':resume_check,'adapter_reload_check':reload_check,'gradient_checkpointing':not a.no_gc,'batch':a.batch,'accumulation':16//a.batch,'effective_batch':16,'step_seconds':measured_steps,'steady_step_seconds':sum(measured_steps[1:])/2,'samples_per_second':32/sum(measured_steps[1:]),'peak_allocated_gib':torch.cuda.max_memory_allocated()/2**30,'peak_reserved_gib':torch.cuda.max_memory_reserved()/2**30,'loss':result.training_loss,'trainable_parameters':trainable_count,'sample_token_lengths':[len(r['input_ids']) for r in rows],'optimized_modules_loaded':[n for n in ('causal_conv1d','fla.ops.gated_delta_rule') if n in sys.modules]}
     Path(a.output).write_text(json.dumps(result,indent=2));print('BENCH_RESULT',json.dumps(result),flush=True)
 
 
@@ -61,11 +100,11 @@ def _generate(a):
     generation={'max_new_tokens':a.max_new_tokens,'do_sample':False,'num_beams':1,'use_cache':True,'pad_token_id':tokenizer.pad_token_id,'eos_token_id':tokenizer.eos_token_id}
     args=SimpleNamespace(max_new_tokens=a.max_new_tokens)
     source=ast.parse((ROOT/'scripts/compare_factory_sample.py').read_text());functions=[next(n for n in ast.walk(source) if isinstance(n,ast.FunctionDef) and n.name==name) for name in ('trim_generated','generate_batch')]
-    scope=locals().copy()
+    scope=globals().copy();scope.update(locals())
     exec(compile(ast.Module(body=functions,type_ignores=[]),'compare_factory_sample.py','exec'),scope)
     generate_batch=scope['generate_batch']
     generate_batch(cases[:1]);results=[];baseline_texts=None
-    for batch in (1,2,4):
+    for batch in a.generation_batches:
      torch.cuda.empty_cache();torch.cuda.reset_peak_memory_stats();torch.cuda.synchronize();start=time.perf_counter();all_res=[]
      try:
       for offset in range(0,len(cases),batch):
@@ -74,7 +113,8 @@ def _generate(a):
       torch.cuda.synchronize();seconds=time.perf_counter()-start
       if baseline_texts is None:baseline_texts=[r['text'] for r in all_res]
       matches=sum(r['text']==text for r,text in zip(all_res,baseline_texts))
-      result={'exact_text_matches_to_batch1':matches,'batch':batch,'inputs':len(cases),'seconds':seconds,'output_tokens':sum(r['tokens'] for r in all_res),'output_tokens_per_second':sum(r['tokens'] for r in all_res)/seconds,'peak_allocated_gib':torch.cuda.max_memory_allocated()/2**30,'peak_reserved_gib':torch.cuda.max_memory_reserved()/2**30,'token_cap':a.max_new_tokens,'purpose':'throughput only; truncated probes are never evaluation reports'}
+      result={'reference_batch':a.generation_batches[0],'exact_text_matches_to_reference':matches,'batch':batch,'inputs':len(cases),'seconds':seconds,'output_tokens':sum(r['tokens'] for r in all_res),'output_tokens_per_second':sum(r['tokens'] for r in all_res)/seconds,'peak_allocated_gib':torch.cuda.max_memory_allocated()/2**30,'peak_reserved_gib':torch.cuda.max_memory_reserved()/2**30,'token_cap':a.max_new_tokens,'purpose':'throughput only; truncated probes are never evaluation reports'}
+      (F/('generation_outputs_b'+str(batch)+'.json')).write_text(json.dumps(all_res,ensure_ascii=False,indent=2))
       results.append(result);print('GENERATION_BENCH',json.dumps(result),flush=True)
      except torch.cuda.OutOfMemoryError:
       results.append({'batch':batch,'status':'OOM'});torch.cuda.empty_cache()
@@ -83,11 +123,15 @@ def _generate(a):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode',choices=('train','generation'),required=True)
-    parser.add_argument('--batch',type=int,choices=(1,2,4),default=4)
+    parser.add_argument('--batch',type=int,choices=(1,2,4,8,16),default=4)
+    parser.add_argument('--verify-state',action='store_true',help='Save full checkpoint, resume one step, and verify saved adapter tensor identity')
+    parser.add_argument('--no-gc',action='store_true',help='Isolated probe only: disable activation checkpointing')
+    parser.add_argument('--generation-batches',nargs='+',type=int,choices=(1,2,4,8),default=[1,2,4])
     parser.add_argument('--adapter',help='Existing local factory adapter for generation mode')
     parser.add_argument('--eval-file',default='data/eval/prompts.jsonl')
     parser.add_argument('--max-new-tokens',type=int,default=128)
     a=parser.parse_args()
+    if a.verify_state and a.mode!='train':parser.error('--verify-state requires train mode')
     if a.mode=='generation' and not a.adapter:parser.error('--adapter is required in generation mode')
     if not 1<=a.max_new_tokens<=2048:parser.error('--max-new-tokens must be 1..2048')
     if os.name!='posix':parser.error('Run on the Linux RunPod GPU environment')

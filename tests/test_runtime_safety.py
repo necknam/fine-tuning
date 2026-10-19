@@ -25,6 +25,87 @@ from runpod_client import RunPodClient, JupyterHTTPError
 
 
 class RuntimeSafety(unittest.TestCase):
+    def test_disabling_recomputation_requires_the_tested_batch_size(self):
+        import yaml
+        from runpod_factory_sample import check_settings
+        cfg=yaml.safe_load((ROOT/'configs/hyperparameters.sample.pinned.yaml').read_text(encoding='utf-8'))
+        check_settings(cfg)
+        training=cfg['experiments'][0]['training'];training['gradient_checkpointing']=False
+        with self.assertRaisesRegex(ValueError,'batch 1'):check_settings(cfg)
+        training.update(per_device_train_batch_size=1,gradient_accumulation_steps=16)
+        check_settings(cfg)
+        training['gradient_checkpointing']='false'
+        with self.assertRaisesRegex(ValueError,'boolean'):check_settings(cfg)
+
+    def test_gpu_step_lease_check_is_local_and_expires_closed(self):
+        from factory_state import RunLease
+        from unittest.mock import Mock
+        engine=Mock();lease=RunLease(engine,'test')
+        lease.confirmed_until=time.monotonic()+30
+        lease.assert_healthy();engine.connect.assert_not_called()
+        lease.confirmed_until=time.monotonic()-1
+        with self.assertRaises(RuntimeError):lease.assert_healthy()
+        self.assertTrue(lease.lost.is_set())
+        lease.confirmed_until=time.monotonic()+30
+        with self.assertRaises(RuntimeError):lease.assert_healthy()
+
+    def test_heartbeat_refreshes_deadline_only_after_commit(self):
+        from factory_state import RunLease
+        from unittest.mock import MagicMock
+        engine=MagicMock();lease=RunLease(engine,'test')
+        engine.begin.return_value.__enter__.return_value.execute.return_value.rowcount=1
+        lease.assert_owned=MagicMock();lease.stop.wait=MagicMock(side_effect=[False,True])
+        lease._heartbeat();self.assertGreater(lease.confirmed_until,time.monotonic())
+        self.assertFalse(lease.lost.is_set())
+        lease.confirmed_until=0
+        engine.begin.return_value.__exit__.side_effect=RuntimeError('commit failed')
+        lease.stop.wait=MagicMock(return_value=False);lease._heartbeat()
+        self.assertEqual(lease.confirmed_until,0);self.assertTrue(lease.lost.is_set())
+
+    def test_snapshot_upload_does_not_block_training_callback(self):
+        import ast,threading,uuid
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest.mock import Mock
+        source=ast.parse((ROOT/'scripts/runpod_factory_sample.py').read_text(encoding='utf-8'))
+        callback=next(n for n in ast.walk(source) if isinstance(n,ast.ClassDef) and n.name=='Export')
+        started=threading.Event();release=threading.Event();uploaded=[]
+        with tempfile.TemporaryDirectory() as folder,ThreadPoolExecutor(max_workers=1) as uploader:
+            output=Path(folder);pending={};artifact={'trained_epoch':4,'weight_id':'w4','status':'PENDING'}
+            def upload(*args):
+                started.set()
+                if not release.wait(5):raise TimeoutError('upload test')
+                uploaded.append(args[4])
+            def save(path):Path(path,'adapter_model.safetensors').write_bytes(b'fake weights')
+            env={'TrainerCallback':object,'lease':SimpleNamespace(assert_owned=Mock()),'engine':None,'record':{'run_id':'r'},
+                 'artifact_rows':lambda *a:[artifact],'output':output,'uuid':uuid,'json':json,
+                 'digest':lambda p:'test-hash','plan':{'config_hash':'hash','config':{'is_sample':True,'data':{}}},
+                 'cfg':{'model':{}},'runtime':{},'tokenizer':SimpleNamespace(save_pretrained=lambda p:None),
+                 'verify_snapshot':Mock(),'set_local_saved':Mock(),'upload_snapshot':upload,'api':None,
+                 'repo_id':'fake','pending_uploads':pending,'uploader':uploader}
+            exec(compile(ast.Module(body=[callback],type_ignores=[]),'callback-test','exec'),env)
+            try:
+                env['Export']().on_save(None,SimpleNamespace(epoch=4,global_step=16),None,
+                                      model=SimpleNamespace(save_pretrained=save))
+                self.assertTrue(started.wait(2));self.assertFalse(pending['w4'].done())
+                self.assertTrue((output/'artifacts/w4/factory_manifest.json').is_file())
+                env['verify_snapshot'].assert_called_once();env['set_local_saved'].assert_called_once()
+            finally:release.set()
+            pending['w4'].result(timeout=3);self.assertEqual(uploaded,[output/'artifacts/w4'])
+
+    def test_training_cannot_succeed_when_background_upload_fails(self):
+        import ast
+        from concurrent.futures import ThreadPoolExecutor
+        source=ast.parse((ROOT/'scripts/runpod_factory_sample.py').read_text(encoding='utf-8'))
+        block=next(n for n in ast.walk(source) if isinstance(n,ast.With) and
+                   any(isinstance(i.context_expr,ast.Call) and
+                       getattr(i.context_expr.func,'id','')=='ThreadPoolExecutor' for i in n.items))
+        env={'ThreadPoolExecutor':ThreadPoolExecutor,'pending_uploads':{},'resume':None}
+        def fail():raise RuntimeError('upload failed; local files retained')
+        def train(**kwargs):env['pending_uploads']['w4']=env['uploader'].submit(fail)
+        env['trainer']=SimpleNamespace(train=train)
+        with self.assertRaisesRegex(RuntimeError,'upload failed'):
+            exec(compile(ast.Module(body=[block],type_ignores=[]),'upload-drain-test','exec'),env)
+
     def test_manual_and_worker_share_paid_evaluation_lock(self):
         import threading
         gate=threading.Lock();entered=threading.Event();release=threading.Event()
@@ -131,15 +212,17 @@ class RuntimeSafety(unittest.TestCase):
         cfg={'model':{'base_model_id':'test','revision':'pinned'}}
         messages=[{'role':'user','content':'question'}];generation={'max_new_tokens':128}
         entry={'model':cfg['model'],'quantization':{'load_in_4bit':False,'dtype':'bfloat16'},'messages':messages,
-               'generation':generation,'factory_manifest':manifest,'packages':{'torch':'test','fla-core':'new'},
+               'batch_context_sha256':'same-batch','generation':generation,'factory_manifest':manifest,'packages':{'torch':'test','fla-core':'new'},
                'base':{'text':'answer','ended_with_eos':True,'hit_token_limit':False}}
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);report=root/'reports/smoke_compare_test/comparison.json';report.parent.mkdir(parents=True)
             report.write_text(json.dumps(entry),encoding='utf-8')
             with patch.object(comparison,'inference_packages',return_value=entry['packages']):
-                self.assertIsNotNone(comparison.find_base_cache(root,cfg,messages,generation,manifest))
+                self.assertIsNotNone(comparison.find_base_cache(root,cfg,messages,generation,manifest,'same-batch'))
+                self.assertIsNone(comparison.find_base_cache(root,cfg,messages,generation,manifest,'other-batch'))
+                self.assertIsNone(comparison.find_base_cache(root,cfg,messages,generation,manifest,None))
             with patch.object(comparison,'inference_packages',return_value={'torch':'test','fla-core':'old'}):
-                self.assertIsNone(comparison.find_base_cache(root,cfg,messages,generation,manifest))
+                self.assertIsNone(comparison.find_base_cache(root,cfg,messages,generation,manifest,'same-batch'))
 
     def test_preset_effective_batch_stays_consistent_after_speed_defaults(self):
         import yaml
@@ -150,6 +233,35 @@ class RuntimeSafety(unittest.TestCase):
             recipe=dict(default,**changes)
             effective=recipe['per_device_train_batch_size']*recipe['gradient_accumulation_steps']
             self.assertEqual(effective,32 if pid=='P10' else 16,pid)
+
+    def test_partial_base_cache_regenerates_identical_batch_context(self):
+        import ast,hashlib
+        from contextlib import nullcontext
+        from datetime import datetime,timezone
+        from uuid import uuid4
+        source=ast.parse((ROOT/'scripts/compare_factory_sample.py').read_text(encoding='utf-8'))
+        loop=next(n for n in ast.walk(source) if isinstance(n,ast.For) and
+                  isinstance(n.target,ast.Name) and n.target.id=='offset')
+        cases=[(i,[{'role':'user','content':str(i)}],None) for i in range(2)]
+        calls=[];reports=[];root=Path('test-root')
+        def generate(selected):
+            calls.append([c[0] for c in selected])
+            return ([{'text':'generated','ended_with_eos':True,'hit_token_limit':False} for _ in selected],
+                    [1]*len(selected))
+        env={'range':range,'len':len,'cases':cases,'args':SimpleNamespace(batch_size=8,adapter='fake'),
+             'manifest':{'trained_epoch':4},'torch':SimpleNamespace(cuda=SimpleNamespace(
+                 reset_peak_memory_stats=lambda:None,max_memory_allocated=lambda:0,max_memory_reserved=lambda:0)),
+             'hashlib':hashlib,'json':json,'root':root,'cfg':{'model':{},'quantization':{}},'generation':{},
+             'find_base_cache':lambda root,cfg,messages,*a:(root/'reports/old',{'text':'cached'}) if messages[0]['content']=='0' else None,
+             'model':SimpleNamespace(disable_adapter=nullcontext),'generate_batch':generate,
+             'datetime':datetime,'timezone':timezone,'evaluation_precision':{},'adapter_digest':'a',
+             'test_digest':'t','total_cases':2,'inference_packages':lambda:{},'uuid4':uuid4,
+             'save_report':lambda output,result:reports.append(result)}
+        exec(compile(ast.Module(body=[loop],type_ignores=[]),'partial-cache-test','exec'),env)
+        self.assertEqual(calls,[[0,1],[0,1]])
+        self.assertEqual(len(reports),2)
+        self.assertTrue(all(not r['base_reused'] and r['base']['text']=='generated' for r in reports))
+        self.assertEqual(reports[0]['batch_context_sha256'],reports[1]['batch_context_sha256'])
 
     def test_hard_evaluation_suite_is_ten_fixed_held_out_requests(self):
         entries=[json.loads(line) for line in (ROOT/'data/eval/prompts.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]

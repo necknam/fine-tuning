@@ -72,18 +72,19 @@ def inference_packages():
     return packages
 
 
-def find_base_cache(root,cfg,messages,generation,manifest):
+def find_base_cache(root,cfg,messages,generation,manifest,batch_context):
     """Reuse only the identical BF16 base comparison, independent of the adapter."""
     names=("tokenizer.json","tokenizer_config.json","chat_template.jinja")
     hashes=manifest.get("file_sha256",{})
-    if any(not hashes.get(name) for name in names):
+    if not batch_context or any(not hashes.get(name) for name in names):
         return None
     packages=inference_packages()
     for path in sorted((root/"reports").glob("smoke_compare_*/comparison.json"),reverse=True):
         data=json.loads(path.read_text(encoding="utf-8"))
         other=data.get("factory_manifest",{}).get("file_sha256",{})
         base=data.get("base",{})
-        if (data.get("packages")==packages
+        if (data.get("batch_context_sha256")==batch_context
+            and data.get("packages")==packages
             and data.get("model")==cfg["model"]
             and data.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
             and data.get("messages")==messages and data.get("generation")==generation
@@ -101,7 +102,7 @@ def main():
     parser.add_argument("--case-index", type=int, default=0)
     parser.add_argument("--case-indices", type=int, nargs="+", help="Generate these cases with one shared BF16 model load")
     parser.add_argument("--max-new-tokens", type=int, default=512)
-    parser.add_argument("--batch-size", type=int, choices=(1,2,4), default=None, help="Concurrent BF16 generation inputs")
+    parser.add_argument("--batch-size", type=int, choices=(1,2,4,8), default=None, help="Concurrent BF16 generation inputs")
     args = parser.parse_args()
     if not 1 <= args.max_new_tokens <= 2048:
         raise ValueError("max-new-tokens must be 1..2048")
@@ -112,8 +113,8 @@ def main():
     config_path = (root / args.config).resolve()
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8-sig"))
     args.batch_size=args.batch_size or cfg.get("inference",{}).get("batch_size",1)
-    if type(args.batch_size) is not int or args.batch_size not in (1,2,4):
-        raise ValueError("inference.batch_size must be 1, 2 or 4")
+    if type(args.batch_size) is not int or args.batch_size not in (1,2,4,8):
+        raise ValueError("inference.batch_size must be 1, 2, 4 or 8")
     revision = cfg["model"]["revision"]
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("Use a pinned model revision")
@@ -213,12 +214,15 @@ def main():
         selected=cases[offset:offset+args.batch_size]
         print(f"진행 안내: {manifest['trained_epoch']}에포크 · 입력 {offset+1}~{offset+len(selected)}/{len(cases)} · {len(selected)}개 동시 생성",flush=True)
         torch.cuda.reset_peak_memory_stats()
-        cached=[find_base_cache(root,cfg,messages,generation,manifest) for _,messages,_ in selected]
-        missing=[case for case,entry in zip(selected,cached) if entry is None]
+        batch_context=hashlib.sha256(json.dumps([messages for _,messages,_ in selected],
+            sort_keys=True,ensure_ascii=False,separators=(",",":")).encode()).hexdigest()
+        cached=[find_base_cache(root,cfg,messages,generation,manifest,batch_context) for _,messages,_ in selected]
         base_results={}
-        if missing:
-            with model.disable_adapter():responses,_=generate_batch(missing)
-            base_results={case[0]:response for case,response in zip(missing,responses)}
+        if not all(cached):
+            # Partial reuse would change batch shape/neighbours for the missing cases.
+            cached=[None]*len(selected)
+            with model.disable_adapter():responses,_=generate_batch(selected)
+            base_results={case[0]:response for case,response in zip(selected,responses)}
         tuned_results,lengths=generate_batch(selected)
         for (case_index,messages,reference),cached_base,tuned_response,input_length in zip(selected,cached,tuned_results,lengths):
             base_response=cached_base[1] if cached_base else base_results[case_index]
@@ -229,6 +233,7 @@ def main():
                 "test_sha256":test_digest,"case_index":case_index,"evaluation_total":total_cases,
                 "messages":messages,"reference_unreviewed":reference,"generation":generation,"input_tokens":input_length,
                 "inference_batch_size":len(selected),
+                "batch_context_sha256":batch_context,
                 "packages":inference_packages(),
                 "inference_memory":{"peak_allocated_gib":torch.cuda.max_memory_allocated()/2**30,"peak_reserved_gib":torch.cuda.max_memory_reserved()/2**30},
                 "base_reused":cached_base is not None,"base_source_report":str(cached_base[0].relative_to(root)) if cached_base else None,

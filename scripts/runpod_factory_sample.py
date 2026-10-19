@@ -1,5 +1,6 @@
 """5-epoch sample/production factory: separate snapshots, HF commits and Neon registry."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import importlib.metadata
 import inspect
 import json
@@ -95,8 +96,10 @@ def check_settings(cfg):
     t, q, lora, cp = recipe["training"], cfg["quantization"], recipe["lora"], recipe["checkpoints"]
     if t["num_train_epochs"] != 5 or sorted(recipe["artifacts"]["save_epochs"]) != [4, 5]:
         raise ValueError("This workflow requires 5 epochs and save_epochs [4, 5]")
-    if t["packing"] or not t["bf16"] or not t["gradient_checkpointing"] or t["eval_strategy"] != "epoch":
-        raise ValueError("Expected packing=false, bf16=true, gradient_checkpointing=true, eval_strategy=epoch")
+    if t["packing"] or not t["bf16"] or type(t["gradient_checkpointing"]) is not bool or t["eval_strategy"] != "epoch":
+        raise ValueError("Expected packing=false, bf16=true, boolean gradient_checkpointing, eval_strategy=epoch")
+    if not t["gradient_checkpointing"] and t["per_device_train_batch_size"] != 1:
+        raise ValueError("Disabling activation checkpointing is validated only with GPU batch 1; larger batches exhausted A100 memory")
     if not q["load_in_4bit"] or q["bnb_4bit_compute_dtype"] != "bfloat16":
         raise ValueError("Expected 4-bit BF16 QLoRA")
     if lora["scope"] != "language_model" or lora["target_modules"] != "all-linear" or lora["bias"] != "none":
@@ -172,7 +175,7 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         device_map={"": 0}, dtype=torch.bfloat16, attn_implementation="sdpa", **common)
     model.config.use_cache = False
     model.config.text_config.use_cache = False
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True,
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=t["gradient_checkpointing"],
         gradient_checkpointing_kwargs={"use_reentrant": False})
     targets = [name for name, module in model.named_modules()
         if "language_model" in name.split(".") and isinstance(module, (torch.nn.Linear, bnb.nn.Linear4bit))
@@ -190,7 +193,7 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
 
     class Export(TrainerCallback):
         def on_step_begin(self, args, state, control, **kwargs):
-            lease.assert_owned()
+            lease.assert_healthy()
             return control
 
         def on_epoch_end(self, args, state, control, **kwargs):
@@ -225,7 +228,11 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
                 temporary.rename(path)
             verify_snapshot(path, artifact, plan, record["run_id"])
             set_local_saved(engine, lease, artifact["weight_id"])
-            upload_snapshot(api, engine, lease, repo_id, path, artifact, plan)
+            # Only immutable, verified files are handed to the CPU uploader.
+            if artifact["weight_id"] not in pending_uploads:
+                pending_uploads[artifact["weight_id"]] = uploader.submit(
+                    upload_snapshot, api, engine, lease, repo_id, path, artifact, plan)
+                print(f"UPLOAD QUEUED: epoch={epoch}; training continues", flush=True)
             return control
 
     def collate(batch):
@@ -245,7 +252,7 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         per_device_train_batch_size=t["per_device_train_batch_size"],
         gradient_accumulation_steps=t["gradient_accumulation_steps"],
         per_device_eval_batch_size=t["per_device_eval_batch_size"],
-        bf16=True, gradient_checkpointing=True,
+        bf16=True, gradient_checkpointing=t["gradient_checkpointing"],
         gradient_checkpointing_kwargs={"use_reentrant": False}, optim=t["optim"],
         logging_steps=t["logging_steps"], eval_strategy="epoch",
         prediction_loss_only=True, save_strategy="steps", save_steps=cp["save_steps"],
@@ -256,7 +263,12 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         eval_dataset=validation, processing_class=tokenizer,
         data_collator=collate, callbacks=[Export()])
     set_run_status(engine, lease, "TRAINING")
-    trainer.train(resume_from_checkpoint=resume)
+    pending_uploads = {}
+    # Keep the lease alive until every upload has finished; surface errors before success.
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="snapshot-upload") as uploader:
+        trainer.train(resume_from_checkpoint=resume)
+        for future in pending_uploads.values():
+            future.result()
     if not math.isclose(trainer.state.epoch or 0, 5, abs_tol=1e-5):
         raise RuntimeError("Training did not finish epoch 5")
 

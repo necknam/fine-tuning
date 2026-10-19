@@ -567,24 +567,28 @@ with experiment_tab:
             with b:
                 batch=st.number_input("GPU 배치 크기",min_value=1,max_value=16,value=int(defaults["per_device_train_batch_size"]))
                 accumulation=st.number_input("그래디언트 누적",min_value=1,max_value=256,value=int(defaults["gradient_accumulation_steps"]))
+                checkpointing=st.checkbox("재계산 사용 · GPU 메모리 절약",value=bool(defaults.get("gradient_checkpointing",True)),help="기본값은 켜짐입니다. 끄기는 GPU 배치 1에서만 허용하며, 약 770토큰 샘플에서 더 빨랐습니다. 긴 입력에서는 메모리가 부족할 수 있습니다. 중단 복구용 체크포인트 저장은 계속합니다.")
                 length=st.selectbox("최대 토큰 길이",[1024,2048,4096,8192],index=[1024,2048,4096,8192].index(defaults["max_length"]))
                 decay=st.number_input("가중치 감쇠",min_value=0.0,max_value=1.0,value=float(defaults["weight_decay"]),step=0.01)
             with c:
                 warmup=st.number_input("워밍업 비율",min_value=0.0,max_value=0.9,value=float(defaults["warmup_ratio"]),step=0.05)
                 scheduler=st.selectbox("학습률 스케줄",["cosine","linear","constant"],index=["cosine","linear","constant"].index(defaults["lr_scheduler_type"]))
                 seed=st.number_input("시드",min_value=0,value=int(defaults["seed"]))
-                generation_batch=st.selectbox("답변 동시 생성 개수",[1,2,4],index=[1,2,4].index(base.get("inference",{}).get("batch_size",1)),help="학습 배치와 별개입니다. 메모리가 부족하면 1로 낮추세요.")
+                generation_batch=st.selectbox("답변 동시 생성 개수",[1,2,4,8],index=[1,2,4,8].index(base.get("inference",{}).get("batch_size",1)),help="학습 배치와 별개입니다. 메모리가 부족하면 1로 낮추세요.")
                 priority=st.selectbox("대기열 우선순위",[10,0,20],format_func=lambda v:{0:"높음",10:"보통",20:"낮음"}[v])
             st.caption("총 5에포크 · 4/5에포크 저장 · NF4/BF16 · 언어 모델 Linear 계층. 높은 우선순위도 현재 실행 중인 작업을 중단하지 않습니다.")
             start=st.form_submit_button("새 실험 등록 · 실행 중이면 다음 순서로",type="primary",disabled=not data_ready)
         if start:
             try:
+                if not checkpointing and int(batch)!=1:
+                    raise ValueError("재계산을 끄려면 GPU 배치를 1로 설정하세요. 유효 배치 16을 유지하려면 누적은 16입니다.")
                 base["experiment_id"]=str(uuid.uuid4())
                 base["data"]["test_file"]=evaluation_file
                 base["inference"]={"batch_size":int(generation_batch)}
                 recipe["recipe_name"]=label
                 recipe["lora"].update(r=int(rank),lora_alpha=int(alpha),lora_dropout=float(dropout))
                 recipe["training"].update(learning_rate=float(lr),per_device_train_batch_size=int(batch),
+                    gradient_checkpointing=bool(checkpointing),
                     gradient_accumulation_steps=int(accumulation),max_length=int(length),weight_decay=float(decay),
                     warmup_ratio=float(warmup),lr_scheduler_type=scheduler,seed=int(seed),data_seed=int(seed))
                 name=publish(base)
@@ -1031,7 +1035,7 @@ with guide_tab:
         with st.container(border=True):
             st.markdown("#### 현재 샘플 실험 기준")
             st.write("학습률 0.0001 · LoRA r 32 / alpha 64 · dropout 0.05")
-            st.write("배치 1 × 누적 16 = 유효 배치 16 (GPU 1장) · 최대 길이 2048")
+            st.write("배치 4 × 누적 4 = 유효 배치 16 (GPU 1장) · 최대 길이 2048")
             st.write("총 5에포크 / 4·5에포크 저장 · warmup 0.05 · cosine")
             st.caption("P00 커스텀이나 다른 프리셋을 고르면 설정이 달라집니다. 실제 등록값은 파라미터 화면과 해당 보고서에서 확인하세요.")
         st.info("아래는 제공한 설명 문서입니다. 문서의 5,184개 데이터·3에포크·배치 2·warmup 0.06은 현재 샘플 실행값과 다릅니다. 성공률·메모리·속도 수치와 특정 값에서의 실패 단정은 검증된 측정 결과로 취급하지 마세요.")

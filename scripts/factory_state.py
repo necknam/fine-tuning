@@ -1,5 +1,6 @@
 """Short-transaction database lease and artifact status helpers."""
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -23,8 +24,10 @@ class RunLease:
         self.stop = threading.Event()
         self.lost = threading.Event()
         self.thread = None
+        self.confirmed_until = 0.0
 
     def acquire(self, heartbeat=True):
+        confirmed_until = time.monotonic() + self.ttl
         now = datetime.now(timezone.utc)
         values = dict(owner_token=self.token, expires_at=now + timedelta(seconds=self.ttl))
         try:
@@ -36,6 +39,7 @@ class RunLease:
                     leases.c.expires_at < now).values(**values))
                 if result.rowcount != 1:
                     raise RuntimeError("This run is owned by another worker. Wait for it to finish or its lease to expire.")
+        self.confirmed_until = confirmed_until
         if heartbeat:
             self.thread = threading.Thread(target=self._heartbeat, daemon=True)
             self.thread.start()
@@ -44,6 +48,7 @@ class RunLease:
     def _heartbeat(self):
         while not self.stop.wait(self.interval):
             try:
+                confirmed_until = time.monotonic() + self.ttl
                 with self.engine.begin() as c:
                     self.assert_owned(c)
                     result = c.execute(update(leases).where(leases.c.run_id == self.run_id,
@@ -51,9 +56,20 @@ class RunLease:
                             expires_at=datetime.now(timezone.utc) + timedelta(seconds=self.ttl)))
                     if result.rowcount != 1:
                         raise RuntimeError("Lease ownership changed")
+                self.confirmed_until = confirmed_until
             except Exception:
                 self.lost.set()
                 return
+
+    def assert_healthy(self):
+        """No network on GPU steps; successful heartbeat bounds cached ownership.
+
+        Export/status transitions still call assert_owned against the database.
+        An unavailable heartbeat fails closed; a stalled heartbeat cannot outlive TTL.
+        """
+        if self.lost.is_set() or time.monotonic() >= self.confirmed_until:
+            self.lost.set()
+            raise RuntimeError("Run lease heartbeat failed or expired; stopping this worker")
 
     def assert_owned(self, connection=None):
         if self.lost.is_set():
