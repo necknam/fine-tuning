@@ -7,7 +7,7 @@ target = root / "outputs/runpod_control_bundle.zip"
 files = list((root/"scripts").glob("*.py")) + list((root/"configs").glob("hyperparameters*.yaml"))
 files += list((root/"tests").glob("test_*.py"))
 files += list((root/"data/sample").rglob("*.jsonl"))
-files += [root/name for name in ("requirements-runpod.txt", "README.md", "docs/hyperparameters.html", "data/eval/prompts.jsonl")]
+files += [root/name for name in ("requirements-runpod.txt", "README.md", "docs/FINETUNING_GUIDE.md", "docs/hyperparameters.html", "data/eval/prompts.jsonl")]
 for path in files:
     if not path.is_file():
         raise SystemExit(f"Missing bundle input: {path.name}")
