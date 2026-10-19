@@ -485,7 +485,6 @@ st.session_state["_previous_page"]=st.session_state.get("main_navigation")
 with experiment_tab:
     if experiment_tab.open:
         load_view("history",force=page_changed)
-        if page_changed:st.session_state["_poll_requested"]=True
         st.subheader("파라미터를 바꾸고 실험을 등록하세요")
         st.caption("등록 → 5에포크 학습 또는 재개 → 4·5에포크 저장·업로드 → 같은 평가 입력으로 답변 생성 → 보고서 저장까지 자동 진행합니다.")
         dataset_mode=st.radio("학습 데이터 구분",["sample","production"],horizontal=True,
