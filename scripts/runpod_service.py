@@ -54,7 +54,7 @@ def start(auto_ai=True):
 def fingerprint(root):
     paths=[]
     for pattern in ('outputs/control_jobs/*/job.json','outputs/control_jobs/*/job.log',
-                    'reports/smoke_compare_*/comparison.json','outputs/factory_sample/*/config.yaml'):
+                    'reports/smoke_compare_*/comparison.json','outputs/factory_*/*/config.yaml'):
         for p in Path(root).glob(pattern):
             st=p.stat();paths.append((str(p.relative_to(root)),st.st_size,st.st_mtime_ns))
     return hashlib.sha256(json.dumps(sorted(paths)).encode()).hexdigest()
@@ -72,9 +72,11 @@ def sync_snapshot(root,overview):
         import uuid
         uuid.UUID(run)
         documents['reports/run_configs/'+run+'.yaml']=text
-        relative=yaml.safe_load(text).get('data',{}).get('test_file')
-        if relative and dashboard_store.allowed(relative) and (root/relative).is_file():
-            documents[relative]=(root/relative).read_text(encoding='utf-8')
+        data=yaml.safe_load(text).get('data',{})
+        for field in ('train_file','validation_file','test_file'):
+            relative=data.get(field)
+            if relative and dashboard_store.allowed(relative) and (root/relative).is_file():
+                documents[relative]=(root/relative).read_text(encoding='utf-8')
     # Replace only this Pod's observations; never mark an unobserved old job complete.
     safe=json.loads(app_settings.redact(root,json.dumps(overview.get('jobs',[]),ensure_ascii=False)))
     with closing(dashboard_store.pg(root)) as db:

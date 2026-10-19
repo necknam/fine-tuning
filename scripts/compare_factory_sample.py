@@ -110,8 +110,13 @@ def main():
         (adapter.parent.parent / "runtime_manifest.json")
         .read_text(encoding="utf-8")
     )
-    if manifest.get("is_sample") is not True:
-        raise ValueError("Expected a sample factory adapter")
+    from db_registry import sample_mode, build_plans
+    if manifest.get("is_sample") is not sample_mode(cfg):
+        raise ValueError("Sample/production adapter does not match this experiment")
+    if cfg.get('experiment_id') or not sample_mode(cfg):
+        plan=build_plans(root,config_path,sample_mode(cfg))[0]
+        if manifest['config_hash']!=plan['config_hash']:
+            raise ValueError("Adapter belongs to different training data or experiment")
     if manifest["model"] != cfg["model"] or runtime["model"] != cfg["model"]:
         raise ValueError("Base model/revision differs from training")
     if manifest["config_hash"] != runtime["config_hash"]:
@@ -131,7 +136,7 @@ def main():
         flush=True,
     )
     test_path = (root / cfg["data"].get("test_file", "data/sample/eval/test.jsonl")).resolve()
-    test_path.relative_to(root / "data/sample")
+    test_path.relative_to(root / "data")
     total_cases=sum(bool(line.strip()) for line in test_path.read_text(encoding="utf-8-sig").splitlines())
     indices=list(dict.fromkeys(args.case_indices if args.case_indices is not None else [args.case_index]))
     cases=[(index,*load_case(test_path,index)) for index in indices]

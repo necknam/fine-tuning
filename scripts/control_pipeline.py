@@ -9,7 +9,7 @@ import sys
 import yaml
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, select
-from db_registry import build_plans, runs, artifacts
+from db_registry import build_plans, runs, artifacts, sample_mode, factory_output
 
 
 def main():
@@ -24,13 +24,14 @@ def main():
     config = (root/args.config).resolve()
     config.relative_to(root/"configs")
     cfg = yaml.safe_load(config.read_text(encoding="utf-8-sig"))
-    plan = build_plans(root, config, True)[0]
+    is_sample=sample_mode(cfg)
+    plan = build_plans(root, config, is_sample)[0]
     def execute(script, *flags):
         subprocess.run([sys.executable, "-u", "scripts/"+script, "--config", args.config, *flags], cwd=root, check=True)
     if not args.resume_existing and not args.evaluate_only:
         print("PIPELINE: register", flush=True)
         print("진행 안내: 1/3 · 실험 설정을 등록합니다. 아직 학습은 시작되지 않았습니다.", flush=True)
-        execute("db_registry.py", "--sample", "--register")
+        execute("db_registry.py", *(["--sample"] if is_sample else []), "--register")
     engine = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
     try:
         with engine.connect() as c:
@@ -41,11 +42,13 @@ def main():
             print("진행 안내: 2/3 · 모델을 불러온 뒤 학습합니다. 4·5에포크 가중치를 각각 저장하고 업로드합니다.", flush=True)
         else:
             print("PIPELINE: evaluate existing adapters",flush=True)
-        output = root/"outputs/factory_sample"/run_id
+        output = factory_output(root,run_id,is_sample)
+        if not args.resume_existing and not args.evaluate_only and (output.exists() or record["status"] in ("TRAINED","EVALUATED")):
+            raise ValueError("Existing experiment detected; start a new experiment or use explicit resume/evaluation")
         if (args.resume_existing or args.evaluate_only) and not output.is_dir():
             raise ValueError("Existing run files are missing; restore the original run directory before resuming")
         if not args.evaluate_only:
-            execute("runpod_factory_sample.py", "--execute", *(["--resume"] if output.exists() else []))
+            execute("runpod_factory_sample.py", "--execute", *(["--resume"] if args.resume_existing else []))
         else:
             print("진행 안내: 재학습 없이 저장된 가중치의 BF16 평가만 수행합니다.",flush=True)
         with engine.connect() as c:
@@ -56,7 +59,7 @@ def main():
     if len(snapshots)!=2 or {snapshot["trained_epoch"] for snapshot in snapshots}!={4,5}:
         raise ValueError("Expected exactly the registered epoch-4 and epoch-5 artifacts")
     test_path=(root/cfg["data"].get("test_file","data/sample/eval/test.jsonl")).resolve()
-    test_path.relative_to(root/"data/sample")
+    test_path.relative_to(root/"data")
     cases = [json.loads(s) for s in test_path.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
     if not cases:
         raise ValueError("Evaluation dataset is empty")

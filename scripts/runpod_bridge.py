@@ -66,11 +66,14 @@ def command(kind, config, adapter=None, case=0):
     if kind == "check":
         return factory + ["--check-connections"]
     if kind == "register":
-        return [str(PYTHON), "-u", "scripts/db_registry.py", "--config", config, "--sample", "--register"]
+        import yaml
+        from db_registry import sample_mode
+        cfg=yaml.safe_load(config_path.read_text(encoding='utf-8-sig'))
+        return [str(PYTHON), "-u", "scripts/db_registry.py", "--config", config, *(["--sample"] if sample_mode(cfg) else []), "--register"]
     if kind in ("train", "resume", "sync"):
         return factory + (["--sync-only"] if kind == "sync" else ["--execute"]) + (["--resume"] if kind == "resume" else [])
     if kind == "compare":
-        path = inside(adapter, "outputs/factory_sample")
+        path = inside(adapter, "outputs")
         if not (path / "factory_manifest.json").is_file() or not 0 <= int(case) <= 100000:
             raise ValueError("Invalid adapter or case")
         return [str(PYTHON), "-u", "scripts/compare_factory_sample.py", "--config", config,
@@ -163,11 +166,11 @@ def run(job_id):
 
 def overview():
     snapshots = []
-    for f in (ROOT / "outputs/factory_sample").glob("*/artifacts/*/factory_manifest.json"):
+    for f in (ROOT / "outputs").glob("factory_*/*/artifacts/*/factory_manifest.json"):
         m = json.loads(f.read_text())
         snapshots.append(dict(run_id=m["run_id"], weight_id=m["weight_id"], epoch=m["trained_epoch"],
                               adapter=str(f.parent.relative_to(ROOT))))
-    configurations = {f.parent.name: f.read_text() for f in (ROOT/"outputs/factory_sample").glob("*/config.yaml")}
+    configurations = {f.parent.name: f.read_text() for f in (ROOT/"outputs").glob("factory_*/*/config.yaml")}
     return dict(jobs=status(), snapshots=snapshots, configurations=configurations,
                 reports=[str(f.relative_to(ROOT)) for f in (ROOT / "reports").glob("smoke_compare_*/comparison.json")],
                 scripts=[f.name for f in (ROOT / "scripts").glob("*.py")])

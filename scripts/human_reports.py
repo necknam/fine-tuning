@@ -59,6 +59,11 @@ def catalog(root, precision=None):
             if key not in group["cases"] or report["created_at"] > group["cases"][key][1]["created_at"]:
                 group["cases"][key] = (path, report)
     path = root/"reports/candidate_versions.json"
+    try:cached_versions=json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError,ValueError):cached_versions={}
+    if all(weight in cached_versions for weight in groups):
+        for weight,group in groups.items():group['version']=cached_versions[weight]
+        return groups
     with dashboard_store.version_lock(root), version_guard(path.parent):
         versions = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         original=dict(versions)
@@ -98,14 +103,22 @@ def case_signature(report):
     return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
 
 
+_rating_cache=globals().get("_rating_cache",{})
+
 def case_ratings(root,weight,group,evaluator=None):
     latest={}
     entries=[]
-    if dashboard_store.remote(root):
+    import time
+    cache_key=(str(Path(root).resolve()),dashboard_store.database_key(root),weight)
+    cached=_rating_cache.get(cache_key)
+    if cached is None or time.monotonic()-cached[0]>10:
         with closing(dashboard_store.connect(root)) as connection:
             if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='case_evaluations'").fetchone():
-                entries=[json.loads(row[0]) for row in connection.execute(
-                    "SELECT payload FROM case_evaluations WHERE weight_id=?",(weight,))]
+                entries=[json.loads(row[0]) for row in connection.execute("SELECT payload FROM case_evaluations WHERE weight_id=?",(weight,))]
+        if len(_rating_cache)>128:_rating_cache.clear()
+        _rating_cache[cache_key]=(time.monotonic(),entries)
+    else:
+        entries=list(cached[1])
     for f in (root/"reports/human_evaluations").glob("*.json"):
         entries.append(json.loads(f.read_text(encoding="utf-8")))
     for e in entries:
@@ -146,6 +159,7 @@ def save_case_rating(root,weight,group,case,evaluator,score,note=""):
         connection.execute("CREATE INDEX IF NOT EXISTS evaluations_weight ON case_evaluations(weight_id)")
         connection.execute("INSERT INTO case_evaluations VALUES (?,?,?,?,?,?)",(entry["evaluation_id"],weight,case,evaluator.strip(),entry["created_at"],json.dumps(entry,ensure_ascii=False)))
         connection.commit()
+    _rating_cache.clear()
     return entry
 
 
@@ -172,6 +186,9 @@ def render(root, weight, group):
     config_path=root/"reports/run_configs"/(m["run_id"]+".yaml")
     cfg=yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else None
     rows=["# "+heading,"",f"- 모델: {m['model']['base_model_id']}",f"- 모델 revision: {m['model']['revision']}",
+          "- 학습 구분: "+("샘플 시험" if m.get("is_sample",True) else "실제 데이터 학습"),
+          "- 학습 데이터 해시: "+str(m.get("dataset",{}).get("train",{}).get("sha256","이전 보고서 · 실행 설정 참조")),
+          "- 검증 데이터 해시: "+str(m.get("dataset",{}).get("validation",{}).get("sha256","이전 보고서 · 실행 설정 참조")),
           f"- run_id: {m['run_id']}",f"- weight_id: {weight}",f"- 저장 에포크: {m['trained_epoch']}",
           "- 평균: 각 입력의 최신 휴먼 점수를 입력별 동일 비중으로 평균; 미평가 입력 제외", "",
           "## 학습 파라미터", ""]

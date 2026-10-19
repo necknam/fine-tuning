@@ -44,6 +44,37 @@ def digest(path):
     return hasher.hexdigest()
 
 
+def sample_mode(config):
+    mode=config.get('dataset_mode','sample')
+    if mode not in ('sample','production'):
+        raise ValueError('dataset_mode must be sample or production')
+    return mode=='sample'
+
+def factory_output(root,run_id,is_sample):
+    uuid.UUID(str(run_id))
+    return Path(root)/'outputs'/('factory_sample' if is_sample else 'factory_production')/run_id
+
+def training_text(text):
+    from prepare_data import validate
+    rows=[];prompts=set()
+    for number,line in enumerate(text.splitlines(),1):
+        if not line.strip():continue
+        try:
+            row=json.loads(line)
+            prompt=validate(row)
+        except (ValueError,KeyError,TypeError,StopIteration):
+            raise ValueError(f'Invalid training conversation at line {number}') from None
+        rows.append(row);prompts.add(prompt)
+    if not rows:raise ValueError('Training/validation dataset is empty')
+    return rows,prompts
+
+def validate_dataset_pair(train_text,validation_text):
+    train,train_prompts=training_text(train_text)
+    validation,validation_prompts=training_text(validation_text)
+    if train_prompts & validation_prompts:
+        raise ValueError('Training and validation share first-user prompts; split the data again without leakage')
+    return len(train),len(validation)
+
 def dataset_info(root, relative, is_sample):
     path = (root / relative).resolve()
     path.relative_to(root)  # Disallow accidental reads outside the project.
@@ -71,9 +102,18 @@ def build_plans(root, config_path, is_sample):
     config = yaml.safe_load(config_path.read_text(encoding="utf-8-sig"))
     if config.get("schema_version") != 1:
         raise ValueError("Unsupported schema_version")
+    if sample_mode(config) != is_sample:
+        raise ValueError("Dataset mode does not match registration mode")
     data = config["data"]
     train = dataset_info(root, data["train_file"], is_sample)
     validation = dataset_info(root, data["validation_file"], is_sample)
+    for field,info in (("train",train),("validation",validation)):
+        expected_hash=data.get(field+"_sha256")
+        if expected_hash and info["sha256"]!=expected_hash:
+            raise ValueError(field+" dataset changed after submission")
+    if config.get('dataset_mode')=='production':
+        validate_dataset_pair((root/data['train_file']).read_text(encoding='utf-8-sig'),
+                              (root/data['validation_file']).read_text(encoding='utf-8-sig'))
     if train["sha256"] == validation["sha256"]:
         raise ValueError("Training and validation files are identical")
     expected = data.get("expected_train_samples")
@@ -106,6 +146,9 @@ def build_plans(root, config_path, is_sample):
             "checkpoints": experiment["checkpoints"],
             "pipeline_version": "growpath-registry-v1",
         }
+        if config.get('experiment_id'):
+            uuid.UUID(config['experiment_id'])
+            canonical.update(identity_version=2,experiment_id=config['experiment_id'])
         blob = json.dumps(canonical, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         plans.append({"recipe_name": experiment["recipe_name"],
                       "config_hash": hashlib.sha256(blob.encode()).hexdigest(),

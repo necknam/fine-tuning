@@ -1,4 +1,4 @@
-"""Sample-only 5-epoch factory: separate snapshots, HF commits and Neon registry."""
+"""5-epoch sample/production factory: separate snapshots, HF commits and Neon registry."""
 import argparse
 import importlib.metadata
 import inspect
@@ -15,7 +15,7 @@ import yaml
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, select
 
-from db_registry import artifacts, build_plans, digest, metadata, runs
+from db_registry import factory_output, sample_mode, artifacts, build_plans, digest, metadata, runs
 from factory_state import (RunLease, artifact_rows, set_local_saved,
                            set_run_status, set_uploaded)
 
@@ -36,13 +36,13 @@ def verify_snapshot(path, record, plan, run_id):
 
 def upload_snapshot(api, engine, lease, repo_id, path, record, plan):
     verify_snapshot(path, record, plan, lease.run_id)
-    subfolder = f"sample/{record['weight_id']}"
+    subfolder = ("sample" if plan["config"]["is_sample"] else "production")+"/"+record["weight_id"]
     for attempt in range(1, 4):
         lease.assert_owned()
         try:
             commit = api.upload_folder(folder_path=str(path), repo_id=repo_id,
                 repo_type="model", path_in_repo=subfolder,
-                commit_message=f"Sample adapter {record['weight_id']} epoch {record['trained_epoch']}")
+                commit_message=f"Adapter {record['weight_id']} epoch {record['trained_epoch']}")
             revision = commit.oid
             uploaded = set(api.list_repo_files(repo_id=repo_id, repo_type="model", revision=revision))
             required = {f"{subfolder}/{name}" for name in
@@ -82,7 +82,7 @@ def get_run(engine, plan):
     with engine.connect() as c:
         row = c.execute(select(runs).where(runs.c.config_hash == plan["config_hash"])).mappings().first()
         if not row:
-            raise ValueError("No registered run matches this config and dataset. Register the pinned sample config first.")
+            raise ValueError("No registered run matches this config and dataset. Register this dataset and config first.")
         return dict(row)
 
 
@@ -90,11 +90,11 @@ def check_settings(cfg):
     if not re.fullmatch(r"[0-9a-f]{40}", cfg["model"]["revision"]):
         raise ValueError("Pinned model revision required")
     if cfg["data"]["format"] != "messages" or len(cfg["experiments"]) != 1:
-        raise ValueError("Expected one messages-format sample recipe")
+        raise ValueError("Expected one messages-format recipe")
     recipe = cfg["experiments"][0]
     t, q, lora, cp = recipe["training"], cfg["quantization"], recipe["lora"], recipe["checkpoints"]
     if t["num_train_epochs"] != 5 or sorted(recipe["artifacts"]["save_epochs"]) != [4, 5]:
-        raise ValueError("This integration test requires 5 epochs and save_epochs [4, 5]")
+        raise ValueError("This workflow requires 5 epochs and save_epochs [4, 5]")
     if t["packing"] or not t["bf16"] or not t["gradient_checkpointing"] or t["eval_strategy"] != "epoch":
         raise ValueError("Expected packing=false, bf16=true, gradient_checkpointing=true, eval_strategy=epoch")
     if not q["load_in_4bit"] or q["bnb_4bit_compute_dtype"] != "bfloat16":
@@ -117,10 +117,10 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     from transformers.trainer_utils import get_last_checkpoint
     recipe = cfg["experiments"][0]
     t = recipe["training"]
-    output = root / "outputs/factory_sample" / record["run_id"]
+    output = factory_output(root,record["run_id"],plan["config"]["is_sample"])
     versions = {name: importlib.metadata.version(name) for name in
                 ("torch", "transformers", "peft", "accelerate", "bitsandbytes", "huggingface_hub", "SQLAlchemy", "psycopg")}
-    runtime = {"pipeline": "sample_factory_v1", "loss": "all_conversation_tokens",
+    runtime = {"pipeline": "sample_factory_v1" if plan["config"]["is_sample"] else "production_factory_v1", "loss": "all_conversation_tokens",
         "config_hash": plan["config_hash"], "model": cfg["model"], "packages": versions,
         "cuda": torch.version.cuda,
         "script_sha256": {name: digest(root / "scripts" / name) for name in
@@ -154,8 +154,8 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     gpu = torch.cuda.get_device_properties(0)
     if "A100" not in gpu.name or gpu.total_memory < 75 * 2**30 or not torch.cuda.is_bf16_supported():
         raise ValueError("A100 80GB with BF16 required")
-    print(f"FULL SAMPLE: train={len(training)} validation={len(validation)}; epochs=5; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
-    print("Loss is over all conversation tokens; synthetic integration test, not production-quality training.", flush=True)
+    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'}: train={len(training)} validation={len(validation)}; epochs=5; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
+    print("Loss is over all conversation tokens; "+("synthetic integration test." if sample_mode(cfg) else "production dataset; assess quality using held-out answers."), flush=True)
     if not output.exists():
         output.mkdir(parents=True, exist_ok=False)
         (output / "runtime_manifest.json").write_text(json.dumps(runtime, indent=2), encoding="utf-8")
@@ -213,7 +213,8 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
                 files = {p.name: digest(p) for p in temporary.iterdir() if p.is_file()}
                 snapshot = {"run_id": record["run_id"], "weight_id": artifact["weight_id"],
                     "trained_epoch": epoch, "global_step": state.global_step,
-                    "config_hash": plan["config_hash"], "is_sample": True,
+                    "config_hash": plan["config_hash"], "is_sample": plan["config"]["is_sample"],
+                    "dataset": plan["config"]["data"], "experiment_id": cfg.get("experiment_id"),
                     "model": cfg["model"], "file_sha256": files,
                     "runtime": runtime}
                 (temporary / "factory_manifest.json").write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -272,8 +273,8 @@ def main():
     config_path = (root / args.config).resolve()
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8-sig"))
     check_settings(cfg)
-    plan = build_plans(root, config_path, True)[0]
-    print(f"SAMPLE plan hash={plan['config_hash']}; epochs=5; snapshots=[4, 5]", flush=True)
+    plan = build_plans(root, config_path, sample_mode(cfg))[0]
+    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'} plan hash={plan['config_hash']}; epochs=5; snapshots=[4, 5]", flush=True)
     if not (args.check_connections or args.execute or args.sync_only):
         print("PREVIEW: no database connection, download, training or upload.")
         return
@@ -292,8 +293,8 @@ def main():
     lease = None
     try:
         record = get_run(engine, plan)
-        if not record["is_sample"]:
-            raise ValueError("Sample factory cannot operate on production runs")
+        if record["is_sample"] != sample_mode(cfg):
+            raise ValueError("Registered run dataset mode differs from this request")
         rows = artifact_rows(engine, record["run_id"])
         if {row["trained_epoch"] for row in rows} != {4, 5}:
             raise ValueError("Expected registered epoch-4 and epoch-5 artifacts")
@@ -306,10 +307,12 @@ def main():
         metadata.create_all(engine)  # Adds lease table; existing run/artifact tables are preserved.
         lease = RunLease(engine, record["run_id"]).acquire()
         if all(row["status"] in ("TRAINED", "EVALUATED") for row in rows):
+            if args.execute and not args.resume:
+                raise ValueError("This experiment is already trained. Submit a NEW experiment or explicitly evaluate the existing weights.")
             set_run_status(engine, lease, "TRAINED")
             print("SKIP: both epoch artifacts are already uploaded.")
             return
-        output = root / "outputs/factory_sample" / record["run_id"]
+        output = factory_output(root,record["run_id"],plan["config"]["is_sample"])
         # Recover completed local snapshots first, including upload-success/DB-failure cases.
         for row in rows:
             path = output / "artifacts" / row["weight_id"]
@@ -324,7 +327,7 @@ def main():
         set_run_status(engine, lease, "TRAINED" if done else "INCOMPLETE")
         for row in rows:
             print(f"FINAL epoch={row['trained_epoch']} weight_id={row['weight_id']} status={row['status']} repo={row['hf_repo_id']} path={row['hf_subfolder']} revision={row['hf_revision']}")
-        print("FACTORY SAMPLE PASSED" if done else "SYNC FINISHED; training/checkpoints still required")
+        print(("FACTORY SAMPLE PASSED" if sample_mode(cfg) else "FACTORY PRODUCTION PASSED") if done else "SYNC FINISHED; training/checkpoints still required")
     except BaseException:
         if lease:
             try:

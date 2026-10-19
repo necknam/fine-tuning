@@ -84,22 +84,63 @@ def allowed(key):
         bool(re.fullmatch(r'reports/smoke_compare_[^/]+/comparison.json', key)) or
         bool(re.fullmatch(r'reports/run_configs/[^/]+\.yaml', key)) or
         bool(re.fullmatch(r'reports/human_evaluations/[^/]+\.json', key)) or
-        bool(re.fullmatch(r'data/sample/eval/[^/]+\.jsonl', key)))
+        bool(re.fullmatch(r'data/sample/eval/[^/]+\.jsonl', key)) or
+        bool(re.fullmatch(r'data/sample/processed/(?:(?:train|validation)_[a-f0-9]{64}|control_[a-f0-9]{20})\.jsonl', key)) or
+        bool(re.fullmatch(r'data/production/eval/control_[a-f0-9]+\.jsonl', key)) or
+        bool(re.fullmatch(r'data/production/processed/(?:train|validation)_[a-f0-9]{64}\.jsonl', key)))
 
-def hydrate(root):
-    if not remote(root): return
-    root = Path(root).resolve()
+def database_key(root):
+    import hashlib
+    return hashlib.sha256((values(root).get('DATABASE_URL','')+SCHEMA).encode()).hexdigest()
+
+def persist_many(root, paths):
+    root=Path(root).resolve()
+    entries={}
+    for path in paths:
+        path=Path(path).resolve();key=path.relative_to(root).as_posix()
+        if not allowed(key):raise ValueError('허용되지 않은 DB 문서 경로')
+        entries[key]=path.read_text(encoding='utf-8')
+    if not entries:return
     with closing(pg(root)) as db:
-        rows = db.execute('SELECT path,content FROM documents').fetchall()
-    for key, content in rows:
-        if not allowed(key): raise ValueError('DB 문서 경로가 올바르지 않습니다.')
-        path = (root/key).resolve()
-        path.relative_to(root)
-        if not path.exists() or path.read_text(encoding='utf-8') != content:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temp = path.with_name(path.name+'.restore.'+__import__('uuid').uuid4().hex)
-            temp.write_text(content, encoding='utf-8')
-            temp.replace(path)
+        for key,content in entries.items():
+            db.execute('INSERT INTO documents(path,content) VALUES (%s,%s) ON CONFLICT(path) DO UPDATE SET content=EXCLUDED.content,updated_at=now() WHERE documents.content IS DISTINCT FROM EXCLUDED.content',(key,content))
+        db.commit()
+
+def hydrate(root, force=False, section="all"):
+    import time,hashlib,uuid
+    root=Path(root).resolve()
+    if section not in ('all','history','reports'):raise ValueError('Unknown document section')
+    state_path=root/'.cache'/('neon_sync_'+database_key(root)[:16]+'_'+section+'.json')
+    try:state=json.loads(state_path.read_text(encoding='utf-8'))
+    except (FileNotFoundError,ValueError):state={}
+    if not force and time.time()-state.get('checked',0)<15:return
+    known=state.get('files',{});changed=[];fresh={}
+    with closing(pg(root)) as db:
+        query='SELECT path,md5(content) FROM documents'
+        if section=='history':query+=" WHERE path='reports/control_history.json' OR path LIKE 'reports/run_configs/%'"
+        elif section=='reports':query+=" WHERE path LIKE 'reports/%'"
+        metadata=db.execute(query).fetchall()
+        for key,checksum in metadata:
+            if not allowed(key):raise ValueError('DB 문서 경로가 올바르지 않습니다.')
+            path=(root/key).resolve();path.relative_to(root)
+            old=known.get(key,{})
+            stat=path.stat() if path.is_file() else None
+            if stat and old.get('checksum')==checksum and old.get('mtime')==stat.st_mtime_ns and old.get('size')==stat.st_size:
+                fresh[key]=old;continue
+            if stat and hashlib.md5(path.read_text(encoding='utf-8').encode()).hexdigest()==checksum:
+                fresh[key]={'checksum':checksum,'mtime':stat.st_mtime_ns,'size':stat.st_size};continue
+            changed.append(key)
+        rows=db.execute('SELECT path,content FROM documents WHERE path=ANY(%s)',(changed,)).fetchall() if changed else []
+    for key,content in rows:
+        path=(root/key).resolve();path.relative_to(root)
+        path.parent.mkdir(parents=True,exist_ok=True)
+        temp=path.with_name(path.name+'.restore.'+uuid.uuid4().hex)
+        temp.write_text(content,encoding='utf-8',newline='');temp.replace(path)
+        stat=path.stat()
+        fresh[key]={'checksum':hashlib.md5(content.encode()).hexdigest(),'mtime':stat.st_mtime_ns,'size':stat.st_size}
+    state_path.parent.mkdir(parents=True,exist_ok=True)
+    temporary=state_path.with_name(state_path.name+'.'+uuid.uuid4().hex+'.tmp')
+    temporary.write_text(json.dumps({'checked':time.time(),'files':fresh}),encoding='utf-8');temporary.replace(state_path)
 
 @contextmanager
 def version_lock(root):

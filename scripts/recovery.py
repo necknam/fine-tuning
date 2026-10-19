@@ -5,7 +5,7 @@ import app_settings
 from runpod_client import RunPodClient
 
 SERVICE_FILES = ('app_settings.py','dashboard_store.py','human_reports.py',
-                 'ai_evaluation.py','runpod_service.py')
+                 'ai_evaluation.py','runpod_service.py','db_registry.py','prepare_data.py')
 
 def reconnect(root, state, force=False):
     if not force and time.time()-state.get('reconnect_attempt_at',0)<60:
