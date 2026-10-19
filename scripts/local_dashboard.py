@@ -601,7 +601,7 @@ with experiment_tab:
 
         refresh_controls=st.columns([2,3])
         with refresh_controls[0]:
-            auto_refresh=st.toggle("실행 현황 자동 갱신",value=False,key="monitor_auto_refresh")
+            auto_refresh=st.toggle("실행 현황 자동 갱신",value=False,key="monitor_auto_refresh_opt_in_v2")
         with refresh_controls[1]:
             st.caption("기본은 필요할 때 조회합니다. 켜면 30초 간격으로 갱신합니다. 원격 작업은 계속 실행됩니다.")
 
