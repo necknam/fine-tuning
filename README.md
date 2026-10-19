@@ -4,8 +4,9 @@
 
 ## 빠른 시작 · 로컬 Windows
 
+프로젝트 폴더에서 PowerShell을 열고 실행합니다.
+
 ```powershell
-cd "C:\Users\오호민\Desktop\Study\qwen_factory"
 .\start_dashboard.ps1
 ```
 
