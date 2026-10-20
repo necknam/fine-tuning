@@ -5,7 +5,7 @@ VALUES
   ('테스트_DB사용자','db.demo@growpath.example.invalid','가상 데이터팀','데이터베이스 엔지니어','테스트','TEST_MANUAL'),
   ('테스트_AI사용자','ai.demo@growpath.example.invalid','가상 AI팀','AI 엔지니어','테스트','TEST_MANUAL'),
   ('테스트_MLOps사용자','mlops.demo@growpath.example.invalid','가상 플랫폼팀','MLOps 엔지니어','테스트','TEST_MANUAL'),
-  -- K-water V11 일반직 3~5급 우선 상담 가상 직원 5명 (비부서장·비교대 팀원) 및 상급자(2급(을) 팀장) 후보
+  -- K-water V11 일반직 3~5급 우선 상담 가상 직원 5명 (비부서장·비교대 팀원) 및 부서장(2급(을) 팀장) 후보
   ('김전산','jeonsan.kim@growpath.example.invalid','AI본부 디지털관리처','전산 엔지니어','일반직 4급','TEST_MANUAL'),
   ('이행정','haengjung.lee@growpath.example.invalid','경영부문 인재경영실','HR 행정 담당','일반직 4급','TEST_MANUAL'),
   ('박디지털','digital.park@growpath.example.invalid','AI본부 디지털관리처','디지털플랫폼 엔지니어','일반직 5급','TEST_MANUAL'),
@@ -24,7 +24,7 @@ WITH examples(profile_id,profile_name,department,grade,job_title,career_years,co
     ('f17590a8-0020-4000-8000-000000000013'::uuid,'박디지털','AI본부 디지털관리처','일반직 5급','디지털플랫폼 엔지니어',1,'디지털관리처 전산 업무 신입·주임 팀원(비부서장·비교대), 연간 기준학습시간 112시간(담당부서 40% 의무) 상담 대상'),
     ('f17590a8-0020-4000-8000-000000000014'::uuid,'최인재','경영부문 인재경영실','일반직 3급','인재육성 기획 담당',8,'인재경영실 행정 업무 선임 팀원(비부서장·비교대), 연간 기준학습시간 64시간 및 3급 근무성적·경력평정 상담 대상'),
     ('f17590a8-0020-4000-8000-000000000015'::uuid,'정데이터','AI본부 디지털관리처','일반직 3급','데이터시스템 엔지니어',7,'디지털관리처 전산 업무 선임 팀원(비부서장·비교대), 전산직렬 현장근무 예외 및 기술 자격 가감평정 상담 대상'),
-    ('f17590a8-0020-4000-8000-000000000016'::uuid,'강팀장','AI본부 디지털관리처','일반직 2급(을)','디지털관리 팀장 후보',12,'상급자(팀장 직위 후보) 참고 프로필, 직급·직위 분리 운영 및 2급(을) 평정 기준 참고 대상')
+    ('f17590a8-0020-4000-8000-000000000016'::uuid,'강팀장','AI본부 디지털관리처','일반직 2급(을)','디지털관리 팀장 후보',12,'부서장(팀장 직위 후보) 참고 프로필, 직급·직위 분리 운영 및 2급(을) 평정 기준 참고 대상')
 )
 INSERT INTO public.test_mock_profiles
   (profile_id,source_type,profile_name,department,grade,job_title,career_years,current_skills,target_skills,work_context_summary)

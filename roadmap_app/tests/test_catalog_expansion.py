@@ -16,6 +16,16 @@ def ing():
     return obj
 
 class CatalogExpansionTests(TestCase):
+    def test_resource_images_use_only_official_payload_urls(self):
+        image=catalog_details.resource_image_url
+        self.assertEqual(image('courses','API_KMOOC',{'course_image':'https://example.org/course.jpg'}),'https://example.org/course.jpg')
+        self.assertEqual(image('courses','API_MS_LEARN',{'social_image_url':'javascript:bad','icon_url':'https://example.org/icon.svg'}),'https://example.org/icon.svg')
+        self.assertEqual(image('books','API_DATA4LIBRARY',{'detail_record':{'bookImageURL':'https://example.org/book.jpg'}}),'https://example.org/book.jpg')
+        self.assertEqual(image('certifications','API_MS_CERT',{'certification':{'icon_url':'https://example.org/badge.svg'}}),'https://example.org/badge.svg')
+        self.assertIsNone(image('books','API_DATA4LIBRARY',{}))
+        self.assertIsNone(image('jobs','API_CAREERNET',{'icon_url':'https://example.org/icon.svg'}))
+        self.assertIsNone(image('courses','API_KMOOC',{'course_image':'https://user:password@example.org/a.jpg'}))
+
     def test_description_can_match_without_title_keyword(self):
         obj=ing()
         row=obj._record('books','API_DATA4LIBRARY','123',

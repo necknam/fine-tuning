@@ -9,7 +9,9 @@ target = root / "outputs/runpod_control_bundle.zip"
 files = list((root/"scripts").glob("*.py")) + list((root/"configs").glob("hyperparameters*.yaml"))
 files += list((root/"tests").glob("test_*.py"))
 files += list((root/"data/sample").rglob("*.jsonl"))
-files += [root/name for name in ("requirements-runpod.txt", "README.md", "docs/FINETUNING_GUIDE.md", "data/eval/prompts.jsonl")]
+files += [root/name for name in ("requirements-runpod.txt", "README.md", "data/eval/prompts.jsonl")]
+guide=root.parent/'docs/FINETUNING_GUIDE.md'
+files.append(guide if guide.is_file() else root/'docs/FINETUNING_GUIDE.md')
 config=yaml.safe_load((root/'configs/hyperparameters.sample.pinned.yaml').read_text(encoding='utf-8-sig'))
 cohort=report_input_info(root,config)
 if cohort:
@@ -23,5 +25,5 @@ for path in files:
 target.parent.mkdir(exist_ok=True)
 with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(set(files)):
-        archive.write(path, path.relative_to(root))
+        archive.write(path, path.relative_to(root) if path.is_relative_to(root) else Path('docs')/path.name)
 print(target)

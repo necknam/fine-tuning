@@ -3,10 +3,35 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from html import unescape
 import re
+from urllib.parse import urlsplit
 from collections import Counter
 from src.shared.catalog_eligibility import exclusion_reason, timestamp
 
 from src.shared.catalog_quality import missing_fields, certification_availability
+
+
+def resource_image_url(kind,source,payload):
+    if not isinstance(payload,dict):return None
+    if kind=='courses' and source=='API_KMOOC':fields=('course_image',);records=[payload]
+    elif kind=='courses' and source=='API_MS_LEARN':fields=('social_image_url','icon_url');records=[payload]
+    elif kind=='books' and source=='API_DATA4LIBRARY':fields=('bookImageURL',);records=[payload.get('image_lookup_record'),payload.get('detail_record'),payload.get('list_record'),payload]
+    elif kind=='certifications' and source=='API_MS_CERT':fields=('social_image_url','icon_url');records=[payload.get('merged_certification'),payload.get('certification'),payload]
+    else:return None
+    for record in records:
+        if not isinstance(record,dict):continue
+        for field in fields:
+            value=record.get(field)
+            if not isinstance(value,str):continue
+            value=value.strip()
+            try:
+                parsed=urlsplit(value)
+                if parsed.scheme in ('https','http') and parsed.hostname and not parsed.username and not parsed.password and not any(c.isspace() for c in value):return value
+            except ValueError:continue
+    return None
+
+
+def course_image_url(source,payload):
+    return resource_image_url('courses',source,payload)
 
 
 def clean(value):
@@ -44,6 +69,7 @@ def enrich_kmooc(ing, rows):
                 raise ValueError('DETAIL_ID_MISMATCH')
             # Detail is authoritative for current enrollment/public status too.
             row['raw'] = {**row['raw'], **detail}
+            row['fields']['image_url'] = course_image_url('API_KMOOC',row['raw'])
             row['fields']['syllabus_summary'] = clean(detail.get('summary'))
             row['fields']['category_name'] = clean(detail.get('middle_classfy_name') or detail.get('classfy_name'))
             if row['fields']['category_name'] and len(row['fields']['category_name']) > 50:
@@ -74,6 +100,7 @@ def enrich_books(ing, rows):
             row['fields']['description'] = clean(book.get('description'))
             row['fields']['source_url'] = endpoint
             row['raw'] = {'list_record':row['raw'], 'detail_record':book}
+            row['fields']['image_url'] = resource_image_url('books',row['source'],row['raw'])
             # Bibliographic existence alone does not establish access to a copy.
             libraries = []
             for region in ing.config['library'].get('availability_regions', ['11', '31', '25']):
@@ -276,3 +303,33 @@ def finalize(ing, kind, rows):
     ing.reports[kind+'_availability'] = {'accepted':len(allowed),'excluded':dict(rejected)}
     # Do not insert unknown/unusable candidates even as enrichment/review rows.
     return allowed
+
+
+def refresh_missing_book_images(ing,conn,*,dry_run=False,limit=100):
+    """Look up missing covers by exact ISBN. Never infer a URL or change book content."""
+    from psycopg.types.json import Jsonb
+    pending=conn.execute('SELECT isbn FROM public.books WHERE image_url IS NULL ORDER BY isbn LIMIT %s',(limit,)).fetchall()
+    endpoint=ing.config['library'].get('detail_url','https://data4library.kr/api/srchDtlList')
+    key=ing._key('LIBRARY_AUTH_KEY','LIBRARY_NARU_API_KEY')
+    found=missing=0;failures=[]
+    for row in pending:
+        isbn=row['isbn']
+        try:
+            payload=ing._request(endpoint,{'authKey':key,'isbn13':isbn,'format':'json'})
+            records=payload.get('response',{}).get('detail',[])
+            book=next((r['book'] for r in records if isinstance(r,dict) and isinstance(r.get('book'),dict) and str(r['book'].get('isbn13',''))==isbn),None)
+            image=resource_image_url('books','API_DATA4LIBRARY',book)
+            if not image:missing+=1;continue
+            found+=1
+            if not dry_run:
+                conn.execute('UPDATE public.books SET image_url=%s WHERE isbn=%s AND image_url IS NULL',(image,isbn))
+                # Preserve the original acquisition/matching record; append image lookup evidence.
+                conn.execute("""UPDATE growpath_meta.catalog_api_sources SET payload=payload||%s::jsonb
+                    WHERE resource_type='books' AND source='API_DATA4LIBRARY' AND entity_key=%s""",(Jsonb({'image_lookup_record':book}),isbn))
+        except Exception as exc:
+            failures.append({'isbn':isbn,'error_type':type(exc).__name__})
+            if getattr(ing,'_library_blocked',None):break
+    return {'status':'PARTIAL' if failures else 'SUCCESS','requested':found+missing+len(failures),
+            'found_images':found,'no_image_returned':missing,'failures':failures,
+            'database_changes':bool(found and not dry_run),'embedding_api_called':False,
+            'remaining_without_image':conn.execute('SELECT count(*) AS n FROM public.books WHERE image_url IS NULL').fetchone()['n']}

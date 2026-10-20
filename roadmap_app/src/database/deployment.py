@@ -54,6 +54,8 @@ for _table, _columns in INGESTION_NULLABLE.items():
 CONTENT_COLUMNS = {}
 for _name in ('courses','books','certifications','jobs','majors'):
     _extra = {'source_url':'text', 'content_status':'text', 'source_verified_at':'timestamp with time zone'}
+    if _name in ('courses','books','certifications'):
+        _extra['image_url'] = 'text'
     if _name != 'courses':
         _extra['description'] = 'text'
     CONTENT_COLUMNS['public.'+_name] = _extra
@@ -65,6 +67,9 @@ for _name in ('courses','books','certifications','jobs','majors'):
 
 def apply_ingestion_schema(conn):
     """Idempotent non-destructive extension for current and newly bootstrapped DBs."""
+    from .final_schema import active
+    if active(conn):
+        return
     for table, columns in CONTENT_COLUMNS.items():
         for column, kind in columns.items():
             conn.execute(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {kind}')
@@ -109,9 +114,13 @@ def ident(value):
     return '"'+value+'"'
 
 
-def table_sql(table):
+def table_sql(table, conn=None):
     if table not in CATALOG:
         raise ValueError(f'Unknown table: {table}')
+    if conn is not None:
+        from .final_schema import active, RENAMES
+        if active(conn):
+            table = RENAMES.get(table, table)
     return '.'.join(ident(part) for part in table.split('.'))
 
 
@@ -243,6 +252,10 @@ def normalize_type(value):
 
 
 def check_schema(conn, allow_missing=False):
+    from .final_schema import active, verify as verify_final
+    if active(conn):
+        verify_final(conn)
+        return
     errors = []
     for table, spec in CATALOG.items():
         schema, name = table.split('.')
@@ -286,7 +299,7 @@ def archive_unused_legacy_tables(conn):
     return dict(LEGACY_ARCHIVE)
 
 
-def migrate(conn):
+def _migrate_legacy(conn):
     conn.execute('SELECT pg_advisory_xact_lock(763250130)')
     check_schema(conn, allow_missing=True)
     conn.execute('CREATE SCHEMA IF NOT EXISTS growpath_meta')
@@ -295,6 +308,8 @@ def migrate(conn):
     applied = {r['version']: r['sha256'] for r in conn.execute('SELECT version,sha256 FROM growpath_meta.schema_migrations').fetchall()}
     done = []
     for path in sorted(MIGRATIONS.glob('*.sql')):
+        if path.name >= '007_':
+            continue
         version, checksum = path.name, digest(path)
         if version in applied:
             if applied[version] != checksum:
@@ -309,6 +324,36 @@ def migrate(conn):
     # Ask Supabase's PostgREST to refresh after commit. Ordinary PostgreSQL accepts NOTIFY too.
     conn.execute("NOTIFY pgrst, 'reload schema'")
     return {'applied': done, 'tables_verified': len(CATALOG), 'legacy_archive': legacy_archive}
+
+
+def _prepare_legacy_vector_tables(conn):
+    """Earlier releases created vector tables lazily; bootstrap must create them too."""
+    from .vectors.regulation_vectors import DDL as regulation_ddl
+    from .final_schema import RENAMES
+    for old,new in sorted(RENAMES.items(),key=lambda item:len(item[1]),reverse=True):
+        regulation_ddl=regulation_ddl.replace(new,old)
+    regulation_ddl=regulation_ddl.replace('SCHEMA regulations','SCHEMA hr_regulation_pilot')
+    conn.execute(regulation_ddl,prepare=False)
+    from .schema_components import AUDIT_DDL
+    conn.execute(AUDIT_DDL,prepare=False)
+    conn.execute("""SET LOCAL search_path TO public,extensions;
+    CREATE TABLE IF NOT EXISTS public.learning_resource_embedding(
+     resource_type text NOT NULL CHECK(resource_type IN ('skills','courses','certifications','books')),
+     resource_id text NOT NULL,embedding_model text NOT NULL,
+     dimensions integer NOT NULL CHECK(dimensions=1536),input_version text NOT NULL,
+     input_sha256 text NOT NULL CHECK(length(input_sha256)=64),
+     embedding vector(1536) NOT NULL CHECK(vector_norm(embedding)>0),
+     updated_at timestamptz NOT NULL DEFAULT now(),
+     PRIMARY KEY(resource_type,resource_id,embedding_model));""",prepare=False)
+
+
+def migrate(conn):
+    from .final_schema import active, migrate as migrate_final
+    if not active(conn) and not conn.execute("SELECT to_regclass('public.users') AS id").fetchone()['id']:
+        _migrate_legacy(conn)
+    if not active(conn):
+        _prepare_legacy_vector_tables(conn)
+    return migrate_final(conn)
 
 
 def record_model(conn, table, model):
@@ -337,7 +382,12 @@ def upsert_rows(conn, table, rows):
     if not rows:
         return 0
     spec = CATALOG[table]
-    fields = [c['column'] for c in spec['columns']]
+    physical = table_sql(table, conn)
+    existing = {r['column_name'] for r in conn.execute('SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND table_name=%s', tuple(physical.replace(chr(34), '').split('.'))).fetchall()}
+    columns = [c for c in spec['columns'] if c['column'] in existing]
+    fields = [c['column'] for c in columns]
+    if not set(spec['pk']).issubset(fields):
+        raise ValueError('Target primary key is missing: '+table)
     if table == 'public.skill_tags':
         validate_skill_identity(conn.execute('SELECT skill_id,name,category FROM public.skill_tags').fetchall(), rows)
     if table == 'hr_regulation_pilot.rag_chunk_source':
@@ -345,18 +395,18 @@ def upsert_rows(conn, table, rows):
         chunk_ids = sorted({r['rag_chunk_id'] for r in rows})
         source_ids = [r['rag_chunk_source_id'] for r in rows]
         conn.execute(
-            'DELETE FROM hr_regulation_pilot.rag_chunk_source WHERE rag_chunk_id = ANY(%s) AND NOT (rag_chunk_source_id = ANY(%s))',
+            'DELETE FROM '+table_sql(table, conn)+' WHERE rag_chunk_id = ANY(%s) AND NOT (rag_chunk_source_id = ANY(%s))',
             (chunk_ids, source_ids),
         )
     # Different model spaces must never be silently mixed. Provenance is checked by the caller.
-    slots = ['%s::'+c['type'].lower() if c['type'].lower().startswith('vector(') else '%s' for c in spec['columns']]
+    slots = ['%s::'+c['type'].lower() if c['type'].lower().startswith('vector(') else '%s' for c in columns]
     assignments = ', '.join(f'{ident(c)}=EXCLUDED.{ident(c)}' for c in fields if c not in spec['pk'])
     conflict = 'DO UPDATE SET '+assignments if assignments else 'DO NOTHING'
-    statement = f"INSERT INTO {table_sql(table)} ({', '.join(map(ident, fields))}) VALUES ({', '.join(slots)}) ON CONFLICT ({', '.join(map(ident,spec['pk']))}) {conflict}"
+    statement = f"INSERT INTO {table_sql(table, conn)} ({', '.join(map(ident, fields))}) VALUES ({', '.join(slots)}) ON CONFLICT ({', '.join(map(ident,spec['pk']))}) {conflict}"
     values = []
     for r in rows:
         row_vals = []
-        for c in spec['columns']:
+        for c in columns:
             col_type = c['type'].lower()
             val = sanitize_null_bytes(r[c['column']])
             if col_type == 'jsonb' and val is not None:
@@ -376,11 +426,14 @@ def upsert_rows(conn, table, rows):
 def sync_sequences(conn, tables):
     # Called only for imported tables, after explicit IDs are restored.
     for table in tables:
+        physical=table_sql(table,conn)
+        existing={r['column_name'] for r in conn.execute('SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND table_name=%s',tuple(physical.replace(chr(34),'').split('.'))).fetchall()}
         for col in CATALOG[table]['columns']:
-            seq = conn.execute('SELECT pg_get_serial_sequence(%s,%s) AS seq',(table,col['column'])).fetchone()['seq']
+            if col['column'] not in existing:continue
+            seq = conn.execute('SELECT pg_get_serial_sequence(%s,%s) AS seq',(table_sql(table, conn),col['column'])).fetchone()['seq']
             if seq:
                 conn.execute(f'''SELECT setval(%s::regclass,
-                    GREATEST(COALESCE((SELECT MAX({ident(col['column'])}) FROM {table_sql(table)}),1),
+                    GREATEST(COALESCE((SELECT MAX({ident(col['column'])}) FROM {table_sql(table, conn)}),1),
                     COALESCE(pg_sequence_last_value(%s::regclass),1)), true)''',(seq,seq))
 
 
@@ -606,10 +659,15 @@ def import_data(conn, directory):
     require_import_provenance(manifest,tables)
     check_schema(conn)
     conn.execute('SET LOCAL search_path TO public, extensions')
+    from .final_schema import active
+    canonical=active(conn)
     counts = {}
+    skipped_legacy_vectors={}
     for table in table_order(tables):
         vector_cols = [c['column'] for c in CATALOG[table]['columns'] if c['type'].lower().startswith('vector(')]
-        if vector_cols and any(r[c] is not None for r in tables[table] for c in vector_cols):
+        if canonical and vector_cols:
+            skipped_legacy_vectors[table]=sum(any(r[col] is not None for col in vector_cols) for r in tables[table])
+        elif vector_cols and any(r[c] is not None for r in tables[table] for c in vector_cols):
             old = conn.execute('SELECT to_regclass(%s) AS id',('growpath_meta.embedding_provenance',)).fetchone()['id']
             known = conn.execute('SELECT model_name FROM growpath_meta.embedding_provenance WHERE table_name=%s',(table,)).fetchone() if old else None
             populated = conn.execute(f"SELECT EXISTS(SELECT 1 FROM {table_sql(table)} WHERE {ident(vector_cols[0])} IS NOT NULL) AS found").fetchone()['found']
@@ -618,10 +676,16 @@ def import_data(conn, directory):
             record_model(conn,table,manifest['embedding_model'])
         counts[table] = upsert_rows(conn,table,tables[table])
     sync_sequences(conn,tables)
-    return {'loaded': counts, 'embedding_model':manifest['embedding_model']}
+    return {'loaded': counts, 'embedding_model':manifest['embedding_model'],
+            'ignored_legacy_embedding_rows':{k:v for k,v in skipped_legacy_vectors.items() if v},
+            'canonical_vector_refresh_required':canonical,
+            'vector_note':'Source-table embeddings are not the canonical index. Restore a full DB backup or run the canonical vector embed commands after source import.' if canonical else None}
 
 
 def verify(conn):
+    from .final_schema import active, verify as verify_final
+    if active(conn):
+        return verify_final(conn)
     check_schema(conn)
     conn.execute('SET LOCAL search_path TO public, extensions')
     rows = []
@@ -641,8 +705,15 @@ def verify(conn):
 
 def demo_users(conn):
     check_schema(conn)
-    sync_sequences(conn,['public.users'])
-    conn.execute((ROOT/'src/database/demo_users.sql').read_text(encoding='utf-8'),prepare=False)
+    from .final_schema import active, _backfill
+    script=(ROOT/'src/database/demo_users.sql').read_text(encoding='utf-8')
+    if active(conn):
+        script=script.replace('INSERT INTO public.users(', 'INSERT INTO public.employees(')
+        conn.execute(script,prepare=False)
+        _backfill(conn, steps=False)
+    else:
+        sync_sequences(conn,['public.users'])
+        conn.execute(script,prepare=False)
     return {'demo_users':[dict(r) for r in conn.execute("SELECT user_id,name,email FROM public.users WHERE email LIKE '%@growpath.example.invalid'").fetchall()]}
 
 

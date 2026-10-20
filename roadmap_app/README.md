@@ -26,9 +26,9 @@ streamlit run app.py
 
 ## 기준 문서
 
-- [DB·파인튜닝 데이터·파인튜닝 통합 보고서](../qwen_factory/docs/CODEX_HANDOFF.md)
-- [로컬 DB 실행·PyCharm 접속·백업](docs/LOCAL_DB_REVIEW_20261020.md)
-- [최신 로컬 DB ERD](docs/통합ERD_1020_로컬DB확인본.html)
+- [DB·파인튜닝 데이터·파인튜닝 통합 보고서](../docs/CODEX_HANDOFF.md)
+- [로컬 DB 실행·PyCharm 접속·백업](../docs/LOCAL_DB_REVIEW_20261020.md)
+- [최신 로컬 DB ERD](../docs/통합ERD_1020_로컬DB확인본.html)
 - [확정 데이터 기준](config/finetuning_1500.yaml)
 
 최종 1,500건 데이터 준비와 로컬 검사는 완료됐다. 실제 GPU 학습과 비교 평가는 남아 있다. 원문·선별 근거·학습 데이터·DB 파일은 보존한다.

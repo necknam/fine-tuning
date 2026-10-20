@@ -6,7 +6,11 @@ from types import SimpleNamespace
 from uuid import UUID
 
 from src.database.deployment import CATALOG, LEGACY_ARCHIVE, connect, ident
-from src.shared.assessment_schema import validate_questions, validate_responses
+from pathlib import Path
+import json
+from src.database.final_schema import RENAMES
+
+CURRENT_CATALOG = json.loads(Path(__file__).with_name("catalog.current.json").read_text(encoding="utf-8"))
 
 
 class DatabaseOperationError(RuntimeError):
@@ -44,6 +48,9 @@ class Query:
         elif ('public.' + table) in CATALOG:
             self.full_table = 'public.' + table
             self.table_name = table
+        elif ('regulations.' + table) in CURRENT_CATALOG:
+            self.full_table = 'regulations.' + table
+            self.table_name = table
         elif ('hr_regulation_pilot.' + table) in CATALOG:
             self.full_table = 'hr_regulation_pilot.' + table
             self.table_name = table
@@ -51,9 +58,14 @@ class Query:
             self.full_table = 'public.' + table
             self.table_name = table
         self.full_table = LEGACY_ARCHIVE.get(self.full_table, self.full_table)
-        self.spec = CATALOG.get(self.full_table)
+        if self.full_table in {'growpath_legacy.ai_cases','growpath_legacy.regulations','growpath_legacy.user_skill_gap','growpath_legacy.employee_skill_gaps'}:
+            raise ValueError('Retired archive table is not available')
+        self.full_table = RENAMES.get(self.full_table, self.full_table)
+        self.spec = CURRENT_CATALOG.get(self.full_table) or CATALOG.get(self.full_table)
         if self.spec is None:
             raise ValueError('Unsupported public table')
+        if self.full_table in {'public.roadmap_generations','public.roadmap_selections','public.roadmap_reports','public.assessment_reports','public.prompt_evaluations','public.prompt_optimizations'}:
+            raise ValueError('Use the canonical database persistence methods for this retired table')
         self.columns = {c['column']: c for c in self.spec['columns']}
         self.operation, self.fields = 'select', '*'
         self.filters, self.sorts, self.cap = [], [], None
@@ -219,25 +231,12 @@ class DatabaseClient:
         except (RuntimeError, ValueError):
             return {'connected': False, 'message': 'SUPABASE_DB_URL connection/schema check failed', 'storage': 'postgresql'}
 
-    def list_test_users(self):
-        return self.table('users').select('user_id,name,email,department,job_title,grade,source_type').in_(
-            'source_type', ['TEST_MANUAL', 'TEST_AUTO']).order('user_id').execute().data
-
     def list_skill_tags(self):
         return self.table('skill_tags').select('skill_id,name,category').order('skill_id').execute().data
 
     def fetch_mock_profiles(self):
         return self._rows('test_mock_profiles')
 
-    def get_or_create_user(self, username, email, department='', job_title='', grade='', source_type='TEST_MANUAL'):
-        if not username.strip() or not email.strip() or source_type not in ('TEST_MANUAL', 'TEST_AUTO', 'REAL_USER'):
-            raise ValueError('User name/email/source_type are required.')
-        with self.transaction() as conn:
-            conn.execute('''INSERT INTO public.users (name,email,department,job_title,grade,source_type)
-                VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (email) DO NOTHING''',
-                (username.strip(), email.strip(), department, job_title, grade, source_type))
-            row = conn.execute('SELECT user_id FROM public.users WHERE email=%s', (email.strip(),)).fetchone()
-        return user_id_value(row['user_id'])
 
     def create_roadmap_session(self, user_id=None, project_name=None, status='DRAFT', current_stage=1, **kwargs):
         uid = user_id_value(user_id)
@@ -264,26 +263,10 @@ class DatabaseClient:
             raise ValueError('Project session does not exist.')
         return True
 
-    def save_project_plan(self, session_id, plan_data, **kwargs):
-        if not isinstance(plan_data, dict):
-            raise ValueError('Project plan must be a JSON object.')
-        fields = ('draft_plan','refined_plan','project_goal','project_scope','tech_stack','milestones','key_issues','deliverables','validation_criteria')
-        # Only supplied fields are updated; finalizing must not erase the original draft.
-        payload = {key: plan_data[key] for key in fields if key in plan_data}
-        if not payload:
-            raise ValueError('Project plan contains no supported fields.')
-        payload.update(session_id=session_id, updated_at=datetime.now(timezone.utc))
-        self.table('project_plans').upsert(payload, on_conflict='session_id').execute()
-        return True
 
     def get_project_plan(self, session_id): return self._one('project_plans', {'session_id': session_id})
 
-    def save_plan_conversation(self, session_id, role, content, sequence_no):
-        self.table('plan_conversations').insert({'session_id': session_id, 'role': role,
-            'content': content, 'sequence_no': sequence_no}).execute()
-        return True
 
-    def get_plan_conversations(self, session_id): return self._rows('plan_conversations', {'session_id': session_id}, 'sequence_no')
 
     @staticmethod
     def _assessment_type(value):
@@ -291,100 +274,18 @@ class DatabaseClient:
             raise ValueError('assessment_type must be PRE or POST')
         return value
 
-    def save_assessment_questions(self, session_id, assessment_type, questions):
-        self._assessment_type(assessment_type)
-        validate_questions(questions, require_ids=False)
-        rows = [{'session_id': session_id, 'assessment_type': assessment_type, 'skill_id': q.get('skill_id'),
-                 'skill': q.get('skill', q.get('skill_name', '')), 'question': q['question'],
-                 'options': q.get('options', []), 'sequence_no': i} for i, q in enumerate(questions, 1)]
-        with self.transaction() as conn:
-            session = self._session_lock(conn, session_id)
-            allowed_stages = (2, 3) if assessment_type == 'PRE' else (5, 6)
-            if session['current_stage'] not in allowed_stages:
-                raise ValueError('이 단계에서는 설문 문항을 변경할 수 없습니다.')
-            catalog = {r['skill_id']: r['name'] for r in conn.execute('SELECT skill_id, name FROM public.skill_tags').fetchall()}
-            if any(catalog.get(q['skill_id']) != q['skill'] for q in questions):
-                raise ValueError('설문의 스킬 ID와 DB 태그 이름이 일치하지 않습니다.')
-            if conn.execute('SELECT 1 FROM public.assessment_responses WHERE session_id=%s AND assessment_type=%s LIMIT 1',
-                            (session_id, assessment_type)).fetchone():
-                raise ValueError('Answered questions cannot be replaced. Start a new project assessment.')
-            self.table('assessment_questions').delete().eq('session_id', session_id).eq('assessment_type', assessment_type)._run(conn)
-            self.table('assessment_questions').insert(rows)._run(conn)
-        return True
 
-    def get_assessment_questions(self, session_id, assessment_type):
-        return self._rows('assessment_questions', {'session_id': session_id, 'assessment_type': self._assessment_type(assessment_type)}, 'sequence_no')
 
-    def save_assessment_responses(self, session_id, assessment_type, responses):
-        self._assessment_type(assessment_type)
-        if not responses:
-            raise ValueError('Empty assessment responses cannot replace saved responses.')
-        ids = [str(r['question_id']) for r in responses]
-        if len(set(ids)) != len(ids) or any(type(r.get('score')) is not int or not 1 <= r['score'] <= 5 for r in responses):
-            raise ValueError('Duplicate question IDs or invalid 1..5 scores.')
-        rows = [{'session_id': session_id, 'assessment_type': assessment_type, 'question_id': r['question_id'],
-                 'selected_option': str(r.get('selected_option', '')), 'score': r['score']} for r in responses]
-        with self.transaction() as conn:
-            session = self._session_lock(conn, session_id)
-            expected_stage = 3 if assessment_type == 'PRE' else 6
-            if session['current_stage'] != expected_stage:
-                raise ValueError('다음 단계에서 사용한 설문 응답은 변경할 수 없습니다.')
-            questions = conn.execute('SELECT question_id, skill_id, skill, question, options, sequence_no FROM public.assessment_questions WHERE session_id=%s AND assessment_type=%s ORDER BY sequence_no',
-                                     (session_id, assessment_type)).fetchall()
-            validate_responses(questions, responses)
-            self.table('assessment_responses').delete().eq('session_id', session_id).eq('assessment_type', assessment_type)._run(conn)
-            self.table('assessment_responses').insert(rows)._run(conn)
-        return True
 
-    def get_assessment_responses(self, session_id, assessment_type):
-        return self._rows('assessment_responses', {'session_id': session_id, 'assessment_type': self._assessment_type(assessment_type)})
 
-    def save_roadmap_generations(self, session_id, generations):
-        if not generations or any(g.get('status') == 'FAILED' or not isinstance(g.get('roadmap_content'), dict)
-                                  or g['roadmap_content'].get('error') for g in generations):
-            raise ValueError('Only successful roadmap generations may be saved.')
-        rows = [{'session_id': session_id, 'strategy_type': g['strategy_type'], 'strategy_title': g.get('strategy_title'),
-                 'summary': g.get('summary'), 'roadmap_content': g['roadmap_content'], 'generation_order': i}
-                for i, g in enumerate(generations, 1)]
-        with self.transaction() as conn:
-            self._session_lock(conn, session_id)
-            if conn.execute('SELECT 1 FROM public.roadmap_selections WHERE session_id=%s', (session_id,)).fetchone():
-                raise ValueError('Selected roadmaps cannot be replaced. Start a new project session.')
-            self.table('roadmap_generations').delete().eq('session_id', session_id)._run(conn)
-            self.table('roadmap_generations').insert(rows)._run(conn)
-        return True
 
-    def get_roadmap_generations(self, session_id): return self._rows('roadmap_generations', {'session_id': session_id}, 'generation_order')
 
-    def save_roadmap_selection(self, session_id, generation_id):
-        self.table('roadmap_selections').upsert({'session_id': session_id, 'generation_id': generation_id,
-            'selected_at': datetime.now(timezone.utc)}, on_conflict='session_id').execute()
-        return True
 
-    def get_roadmap_selection(self, session_id): return self._one('roadmap_selections', {'session_id': session_id})
 
-    def save_roadmap_report(self, session_id, generation_id, report_content):
-        self.table('roadmap_reports').upsert({'session_id': session_id, 'generation_id': generation_id,
-            'report_content': report_content, 'updated_at': datetime.now(timezone.utc)}, on_conflict='session_id').execute()
-        return True
 
-    def select_roadmap_with_report(self, session_id, generation_id, report_content):
-        with self.transaction() as conn:
-            self._session_lock(conn, session_id)
-            self.table('roadmap_selections').upsert({'session_id': session_id, 'generation_id': generation_id,
-                'selected_at': datetime.now(timezone.utc)}, on_conflict='session_id')._run(conn)
-            self.table('roadmap_reports').upsert({'session_id': session_id, 'generation_id': generation_id,
-                'report_content': report_content, 'updated_at': datetime.now(timezone.utc)}, on_conflict='session_id')._run(conn)
-        return True
 
-    def get_roadmap_report(self, session_id): return self._one('roadmap_reports', {'session_id': session_id})
 
-    def save_assessment_report(self, session_id, report_content, report_type='PRE_POST'):
-        self.table('assessment_reports').upsert({'session_id': session_id, 'report_type': report_type,
-            'report_content': report_content}, on_conflict='session_id').execute()
-        return True
 
-    def get_assessment_report(self, session_id): return self._one('assessment_reports', {'session_id': session_id})
 
     def get_active_prompts(self):
         rows = self._rows('prompt_versions', {'is_active': True})
@@ -417,27 +318,9 @@ class DatabaseClient:
         parent = current['parent_version_id']
         return {'success': self.activate_prompt_version(parent, agent_id), 'restored_parent_id': parent}
 
-    def log_prompt_evaluation(self, **kwargs): return self.table('prompt_evaluations').insert(kwargs).execute().data[0]['evaluation_id']
 
-    def log_prompt_optimization(self, **kwargs):
-        self.table('prompt_optimizations').insert(kwargs).execute()
-        return True
 
-    def get_selection_statistics(self, user_type='REAL_USER'):
-        with self.transaction() as conn:
-            rows = conn.execute('''SELECT g.strategy_type, COUNT(*) AS n FROM public.roadmap_selections s
-                JOIN public.roadmap_generations g ON g.generation_id=s.generation_id AND g.session_id=s.session_id
-                JOIN public.roadmap_sessions r ON r.session_id=s.session_id JOIN public.users u USING(user_id)
-                WHERE (%s::text IS NULL OR u.source_type=%s) GROUP BY g.strategy_type''', (user_type, user_type)).fetchall()
-        counts = {r['strategy_type']: r['n'] for r in rows}
-        total = sum(counts.values())
-        return {'total_selections': total, 'counts': counts, 'rates': {key: count / total for key, count in counts.items()}}
 
-    def check_prompt_update_trigger(self, threshold=10, user_type='REAL_USER'):
-        stats = self.get_selection_statistics(user_type)
-        rates = stats['rates']
-        return {'should_trigger': stats['total_selections'] >= threshold, 'current_real_selections': stats['total_selections'],
-                'lowest_agent_id': min(rates, key=rates.get) if rates else None, 'selection_rates': rates}
 
     def get_evaluation_schemas(self, evaluation_kind=None):
         query = self.table('evaluation_result_schema').select()
@@ -455,5 +338,7 @@ class DatabaseClient:
         return query.execute().data
 
 
+from .app_store import extend
+DatabaseClient = extend(DatabaseClient)
 db_client = DatabaseClient()
 __all__ = ['DatabaseClient', 'DatabaseOperationError', 'db_client', 'user_id_value']

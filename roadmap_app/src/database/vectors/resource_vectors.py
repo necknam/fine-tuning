@@ -2,7 +2,7 @@
 
 python -m src.database.vectors.resource_vectors status
 python -m src.database.vectors.resource_vectors embed
-Original embedding columns and source records are never updated.
+Source records are unchanged; vectors are stored in the canonical vector table.
 """
 from __future__ import annotations
 
@@ -14,24 +14,26 @@ from ..deployment import connect
 # Reuse the already validated OpenAI batch client and vector validator.
 from .regulation_vectors import MODEL, DIMENSIONS, embed_texts, vector_values
 
-TABLE = 'public.learning_resource_embedding'
+TABLE = 'public.learning_resource_embeddings'
 INPUT_VERSION = 'db-resource-fields-and-skill-links/v1'
 SPECS = {
     'skills': ('skill_tags', 'skill_id', ('skill_id', 'name', 'category'), None),
     'courses': ('courses', 'course_id', (
         'course_id', 'title', 'category_name', 'org_name', 'url', 'is_matchup',
         'cost', 'duration_weeks', 'recruitment_status', 'syllabus_summary',
-        'platform', 'difficulty', 'record_source'), 'course_skill_map'),
+        'platform', 'difficulty', 'record_source'), 'course_skills'),
     'certifications': ('certifications', 'cert_id', (
         'cert_id', 'title', 'provider', 'test_subjects', 'career_outlook',
-        'exam_type', 'pass_score', 'record_source', 'description', 'source_url', 'content_status'), 'cert_skill_map'),
+        'exam_type', 'pass_score', 'record_source', 'description', 'source_url', 'content_status'), 'certification_skills'),
+    'jobs': ('jobs','job_id',('job_id','title','ncs_units','description','source_url','content_status','record_source'),'job_skills'),
+    'majors': ('majors','major_id',('major_id','title','curriculum','description','source_url','content_status'),'major_skills'),
     'books': ('books', 'isbn', (
-        'isbn', 'title', 'author', 'publisher', 'kdc_code', 'record_source', 'description', 'source_url', 'content_status'), 'book_skill_map'),
+        'isbn', 'title', 'author', 'publisher', 'kdc_code', 'record_source', 'description', 'source_url', 'content_status'), 'book_skills'),
 }
 DDL = '''
 SET LOCAL search_path TO public, extensions;
-CREATE TABLE IF NOT EXISTS public.learning_resource_embedding (
-    resource_type TEXT NOT NULL CHECK (resource_type IN ('skills','courses','certifications','books')),
+CREATE TABLE IF NOT EXISTS public.learning_resource_embeddings (
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('skills','courses','certifications','books','jobs','majors')),
     resource_id TEXT NOT NULL,
     embedding_model TEXT NOT NULL,
     dimensions INTEGER NOT NULL CHECK (dimensions = 1536),
@@ -39,19 +41,29 @@ CREATE TABLE IF NOT EXISTS public.learning_resource_embedding (
     input_sha256 TEXT NOT NULL CHECK (length(input_sha256) = 64),
     embedding vector(1536) NOT NULL CHECK (vector_norm(embedding) > 0),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    skill_id integer REFERENCES public.skill_tags(skill_id) ON DELETE CASCADE,
+    course_id varchar(255) REFERENCES public.courses(course_id) ON DELETE CASCADE,
+    isbn varchar(20) REFERENCES public.books(isbn) ON DELETE CASCADE,
+    certification_id integer REFERENCES public.certifications(cert_id) ON DELETE CASCADE,
+    job_id integer REFERENCES public.jobs(job_id) ON DELETE CASCADE,
+    major_id integer REFERENCES public.majors(major_id) ON DELETE CASCADE,
+    CHECK(num_nonnulls(skill_id,course_id,isbn,certification_id,job_id,major_id)=1),
+    CHECK(CASE resource_type WHEN 'skills' THEN skill_id::text=resource_id WHEN 'courses' THEN course_id=resource_id
+     WHEN 'books' THEN isbn=resource_id WHEN 'certifications' THEN certification_id::text=resource_id
+     WHEN 'jobs' THEN job_id::text=resource_id WHEN 'majors' THEN major_id::text=resource_id ELSE false END IS TRUE),
     PRIMARY KEY (resource_type, resource_id, embedding_model)
 );
-ALTER TABLE public.learning_resource_embedding ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.learning_resource_embedding FROM PUBLIC;
+ALTER TABLE public.learning_resource_embeddings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.learning_resource_embeddings FROM PUBLIC;
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-        REVOKE ALL ON public.learning_resource_embedding FROM anon;
+        REVOKE ALL ON public.learning_resource_embeddings FROM anon;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
-        REVOKE ALL ON public.learning_resource_embedding FROM authenticated;
+        REVOKE ALL ON public.learning_resource_embeddings FROM authenticated;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
-        GRANT SELECT, INSERT, UPDATE, DELETE ON public.learning_resource_embedding TO service_role;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.learning_resource_embeddings TO service_role;
     END IF;
 END $$;
 '''
@@ -64,8 +76,8 @@ def embedding_text(kind, record):
         return json.dumps({'resource_type': kind, 'record': body},
                           ensure_ascii=False, sort_keys=True, default=str)
     text = encode()
-    if kind in ('books', 'certifications', 'courses'):
-        for field in ('description', 'career_outlook', 'test_subjects', 'syllabus_summary'):
+    if kind in ('books', 'certifications', 'courses','jobs','majors'):
+        for field in ('description', 'career_outlook', 'test_subjects', 'syllabus_summary','ncs_units','curriculum'):
             if len(text.encode('utf-8')) <= 8000:
                 break
             value = body.get(field)
@@ -148,13 +160,15 @@ def embed(conn, client=None):
             batch = pending[start:start + 32]
             vectors = embed_texts([v['text'] for _, v in batch], client=client)
             for ((kind, rid), row), vector in zip(batch, vectors):
+                fk={'skills':'skill_id','courses':'course_id','books':'isbn','certifications':'certification_id','jobs':'job_id','majors':'major_id'}[kind]
+                source_id=rid if kind in ('courses','books') else int(rid)
                 conn.execute(f'''INSERT INTO {TABLE}
-                    (resource_type,resource_id,embedding_model,dimensions,input_version,input_sha256,embedding)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s::vector)
+                    (resource_type,resource_id,embedding_model,dimensions,input_version,input_sha256,embedding,{fk})
+                    VALUES (%s,%s,%s,%s,%s,%s,%s::vector,%s)
                     ON CONFLICT (resource_type,resource_id,embedding_model) DO UPDATE SET
                     dimensions=EXCLUDED.dimensions,input_version=EXCLUDED.input_version,
                     input_sha256=EXCLUDED.input_sha256,embedding=EXCLUDED.embedding,updated_at=now()''',
-                    (kind, rid, MODEL, DIMENSIONS, INPUT_VERSION, row['hash'], json.dumps(vector)))
+                    (kind, rid, MODEL, DIMENSIONS, INPUT_VERSION, row['hash'], json.dumps(vector), source_id))
         if {k: v['hash'] for k, v in sources(conn).items()} != {k: v['hash'] for k, v in rows.items()}:
             raise ValueError('DB sources changed during embedding. Rolled back; retry with stable sources.')
         result = status(conn)
@@ -172,7 +186,7 @@ def similarities(conn, rows, keys, query_vector):
     if not keys:
         return {}
     vector = json.dumps(vector_values(query_vector))
-    # 138 rows currently: exact pgvector search avoids ANN recall loss.
+    # Exact pgvector search avoids ANN recall loss for the current catalog.
     conn.execute('SET LOCAL search_path TO public, extensions')
     scored = conn.execute(f'''SELECT resource_type,resource_id,
         1-(embedding <=> %s::vector) AS similarity FROM {TABLE}

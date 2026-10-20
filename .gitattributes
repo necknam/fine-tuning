@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.ps1 text eol=crlf
+roadmap_app/data/regulations/** -text
+*.pdf binary
+*.png binary
+*.xlsx binary
+*.zip binary

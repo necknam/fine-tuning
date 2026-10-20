@@ -4,6 +4,7 @@
 project/
 ├── roadmap_app/      # 로컬 로드맵 앱·DB·데이터 생성
 ├── qwen_factory/     # 학습·평가 관리 앱 — 로컬 또는 Streamlit Cloud
+├── docs/             # 공통 문서·ERD
 └── README.md
 ```
 
@@ -32,4 +33,10 @@ Cloud의 기존 진입 파일 `streamlit_app.py`는 팩토리 화면으로 연�
 
 로드맵 앱이 만든 확정 데이터를 팩토리로 전달한다. 실행 시 서로의 Python 모듈이나 DB를 직접 공유하지 않는다. 최종 1,500건은 학습 1,200·검증 150·별도 평가 150이며 공통 비교 입력 10개는 별도다. 데이터·DB 파일은 Git에서 제외한다.
 
-[DB·데이터·학습 통합 보고서](qwen_factory/docs/CODEX_HANDOFF.md) · [로컬 DB 안내](roadmap_app/docs/LOCAL_DB_REVIEW_20261020.md)
+[DB·데이터·학습 통합 보고서](docs/CODEX_HANDOFF.md) · [로컬 DB 안내](docs/LOCAL_DB_REVIEW_20261020.md)
+
+[HTML 통합 보고서](docs/DB_데이터_파인튜닝_통합보고서.html)
+
+공통 관리는 최상위 .gitignore·.gitattributes·docs에서 합니다. 각 앱의 .env·설정·의존성은 해당 폴더에서 유지합니다.
+
+현재 DB 구조: [ERD 최종](docs/ERD_최종.html) · 운영 41개 / 관리 2개 / 보관 6개.

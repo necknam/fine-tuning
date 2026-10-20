@@ -29,37 +29,11 @@ from src.shared.catalog_eligibility import exclusion_reason
 
 KINDS = ('courses', 'books', 'certifications', 'jobs', 'majors')
 LIMITS = {'courses': 120, 'books': 60, 'certifications': 30, 'jobs': 30, 'majors': 60}
-TABLES = {'courses': ('course_id', 'course_skill_map'), 'books': ('isbn', 'book_skill_map'),
-          'certifications': ('cert_id', 'cert_skill_map'), 'jobs': ('job_id', 'job_skill_map'),
-          'majors': ('major_id', 'major_skill_map')}
+TABLES = {'courses': ('course_id', 'course_skills'), 'books': ('isbn', 'book_skills'),
+          'certifications': ('cert_id', 'certification_skills'), 'jobs': ('job_id', 'job_skills'),
+          'majors': ('major_id', 'major_skills')}
 IT_TITLE = re.compile(r'게임|컴퓨터|소프트웨어|전산|데이터|정보통신|정보보안|정보보호|인공지능|네트워크|프로그래머|정보시스템|(?<![A-Za-z])AI(?![A-Za-z])', re.I)
-AUDIT_DDL = '''
-CREATE SCHEMA IF NOT EXISTS growpath_meta;
-CREATE TABLE IF NOT EXISTS growpath_meta.catalog_api_sources (
-    resource_type TEXT NOT NULL,
-    source TEXT NOT NULL,
-    external_key TEXT NOT NULL,
-    entity_key TEXT NOT NULL,
-    payload JSONB NOT NULL,
-    mapping_evidence JSONB NOT NULL,
-    fetched_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (resource_type,source,external_key)
-);
-ALTER TABLE growpath_meta.catalog_api_sources ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON growpath_meta.catalog_api_sources FROM PUBLIC;
-DO $$ BEGIN
- IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-  REVOKE ALL ON growpath_meta.catalog_api_sources FROM anon;
- END IF;
- IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
-  REVOKE ALL ON growpath_meta.catalog_api_sources FROM authenticated;
- END IF;
- IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
-  GRANT USAGE ON SCHEMA growpath_meta TO service_role;
-  GRANT SELECT,INSERT,UPDATE,DELETE ON growpath_meta.catalog_api_sources TO service_role;
- END IF;
-END $$;
-'''
+from src.database.schema_components import AUDIT_DDL
 
 
 class SourceError(RuntimeError):
@@ -263,6 +237,7 @@ class RealDataIngestor:
         return unquote(value)
 
     def _record(self, kind, source, external_key, fields, raw, match_text=None):
+        if kind in ('courses','books','certifications'):fields['image_url']=catalog_details.resource_image_url(kind,source,raw)
         if not fields.get('title') or not external_key: return None
         # Do not truncate identifiers/titles and accidentally merge unrelated entities.
         max_title = 200 if kind in ('courses', 'books') else 100
@@ -627,7 +602,7 @@ class RealDataIngestor:
                     'certification_status_changes':certification_status_changes,
                     'quality':batch.get('quality',{}),'selection':batch.get('selection',{}),'collection_complete':batch.get('collection_complete',False),
                     'skills_changed':False,'regulations_changed':False,'user_data_changed':False,
-                    'vector_scope':'existing skill/course/book/certification index; existing input format preserved',
+                    'vector_scope':'six-resource canonical vector index with source FKs; stable source IDs preserved',
                     'database_changes':True,'original_embedding_columns_changed':False}
 
     def execute_full_pipeline(self,*,dry_run=False,max_pages=None,allow_partial=False,skip_embeddings=False,db_env='SUPABASE_DB_URL'):

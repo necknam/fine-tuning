@@ -15,12 +15,12 @@ from ..deployment import connect
 
 MODEL = 'text-embedding-3-small'
 DIMENSIONS = 1536
-TABLE = 'hr_regulation_pilot.rag_chunk_embedding'
+TABLE = 'regulations.rag_chunk_embeddings'
 INPUT_VERSION = 'context_path+blank_line+chunk_text/v1'
 DDL = '''
 SET LOCAL search_path TO public, extensions;
-CREATE TABLE IF NOT EXISTS hr_regulation_pilot.rag_chunk_embedding (
-    rag_chunk_id VARCHAR(64) NOT NULL REFERENCES hr_regulation_pilot.rag_chunk(rag_chunk_id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS regulations.rag_chunk_embeddings (
+    rag_chunk_id VARCHAR(64) NOT NULL REFERENCES regulations.rag_chunks(rag_chunk_id) ON DELETE CASCADE,
     embedding_model TEXT NOT NULL,
     dimensions INTEGER NOT NULL CHECK (dimensions = 1536),
     input_version TEXT NOT NULL,
@@ -31,19 +31,19 @@ CREATE TABLE IF NOT EXISTS hr_regulation_pilot.rag_chunk_embedding (
     PRIMARY KEY (rag_chunk_id, embedding_model)
 );
 CREATE INDEX IF NOT EXISTS rag_chunk_embedding_model_idx
-    ON hr_regulation_pilot.rag_chunk_embedding (embedding_model);
-ALTER TABLE hr_regulation_pilot.rag_chunk_embedding ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON hr_regulation_pilot.rag_chunk_embedding FROM PUBLIC;
+    ON regulations.rag_chunk_embeddings (embedding_model);
+ALTER TABLE regulations.rag_chunk_embeddings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON regulations.rag_chunk_embeddings FROM PUBLIC;
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
-        REVOKE ALL ON hr_regulation_pilot.rag_chunk_embedding FROM anon;
+        REVOKE ALL ON regulations.rag_chunk_embeddings FROM anon;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
-        REVOKE ALL ON hr_regulation_pilot.rag_chunk_embedding FROM authenticated;
+        REVOKE ALL ON regulations.rag_chunk_embeddings FROM authenticated;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
-        GRANT USAGE ON SCHEMA hr_regulation_pilot TO service_role;
-        GRANT SELECT, INSERT, UPDATE, DELETE ON hr_regulation_pilot.rag_chunk_embedding TO service_role;
+        GRANT USAGE ON SCHEMA regulations TO service_role;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON regulations.rag_chunk_embeddings TO service_role;
     END IF;
 END $$;
 '''
@@ -51,8 +51,8 @@ END $$;
 # Source data remains authoritative. Superseded/not_for_answer chunks are excluded from embedding.
 SOURCE_SQL = '''SELECT c.*, v.review_status AS version_review_status,
     v.availability_status, v.effective_from, v.effective_to
-    FROM hr_regulation_pilot.rag_chunk c
-    JOIN hr_regulation_pilot.regulation_version v USING (regulation_version_id)
+    FROM regulations.rag_chunks c
+    JOIN regulations.regulation_versions v USING (regulation_version_id)
     WHERE c.search_status NOT IN ('superseded', 'not_for_answer')
     ORDER BY c.rag_chunk_id'''
 
@@ -61,9 +61,9 @@ SEARCH_SQL = '''WITH eligible AS MATERIALIZED (
     SELECT c.rag_chunk_id, c.regulation_version_id, c.chunk_text, c.context_path,
            c.search_status, v.review_status, v.availability_status,
            v.effective_from, v.effective_to, e.embedding
-    FROM hr_regulation_pilot.rag_chunk_embedding e
-    JOIN hr_regulation_pilot.rag_chunk c USING (rag_chunk_id)
-    JOIN hr_regulation_pilot.regulation_version v USING (regulation_version_id)
+    FROM regulations.rag_chunk_embeddings e
+    JOIN regulations.rag_chunks c USING (rag_chunk_id)
+    JOIN regulations.regulation_versions v USING (regulation_version_id)
     WHERE e.embedding_model=%s AND e.dimensions=1536 AND e.input_version=%s
       AND e.input_sha256=''' + HASH_SQL + '''
       AND c.search_status IN ('active','pending_review','needs_review')
@@ -73,11 +73,11 @@ SEARCH_SQL = '''WITH eligible AS MATERIALIZED (
       AND ((v.effective_from IS NOT NULL AND v.effective_from<=%s)
            OR (%s AND v.effective_from IS NULL))
       AND (v.effective_to IS NULL OR v.effective_to>%s)
-      AND EXISTS (SELECT 1 FROM hr_regulation_pilot.rag_chunk_source s
+      AND EXISTS (SELECT 1 FROM regulations.rag_chunk_sources s
                   WHERE s.rag_chunk_id=c.rag_chunk_id)
       AND NOT EXISTS (
-          SELECT 1 FROM hr_regulation_pilot.rag_chunk_source s
-          JOIN hr_regulation_pilot.regulation_node n USING (regulation_node_id)
+          SELECT 1 FROM regulations.rag_chunk_sources s
+          JOIN regulations.regulation_nodes n USING (regulation_node_id)
           WHERE s.rag_chunk_id=c.rag_chunk_id
             AND s.source_role='primary'
             AND ((n.effective_from_override IS NOT NULL AND n.effective_from_override>%s)
@@ -125,7 +125,7 @@ def table_exists(conn):
 
 
 def sources(conn):
-    if not conn.execute("SELECT to_regclass('hr_regulation_pilot.rag_chunk') AS id").fetchone()['id']:
+    if not conn.execute("SELECT to_regclass('regulations.rag_chunks') AS id").fetchone()['id']:
         raise ValueError('Load the regulation schema and real regulation data first.')
     return conn.execute(SOURCE_SQL).fetchall()
 
@@ -175,7 +175,7 @@ def embed_texts(texts, client=None):
 def store_rows(conn, entries):
     for entry in entries:
         current = conn.execute('''SELECT rag_chunk_id,chunk_text,context_path
-            FROM hr_regulation_pilot.rag_chunk WHERE rag_chunk_id=%s FOR SHARE''',
+            FROM regulations.rag_chunks WHERE rag_chunk_id=%s FOR SHARE''',
             (entry['rag_chunk_id'],)).fetchone()
         if current is None or input_hash(current)!=entry['input_sha256']:
             raise ValueError('Regulation source missing/changed; rerun embed: '+entry['rag_chunk_id'])
@@ -230,9 +230,9 @@ def search(conn,query,limit=5,threshold=0.25,include_review=False,as_of=None,ver
         row['sources'] = conn.execute('''SELECT s.regulation_node_id,s.source_role,s.source_span,
             n.label,n.path,n.source_locator,n.extraction_status,n.review_note,
             n.effective_from_override,n.effective_to_override,f.regulation_file_id,f.file_name,f.storage_key
-            FROM hr_regulation_pilot.rag_chunk_source s
-            JOIN hr_regulation_pilot.regulation_node n USING (regulation_node_id)
-            JOIN hr_regulation_pilot.regulation_file f USING (regulation_file_id)
+            FROM regulations.rag_chunk_sources s
+            JOIN regulations.regulation_nodes n USING (regulation_node_id)
+            JOIN regulations.regulation_files f USING (regulation_file_id)
             WHERE s.rag_chunk_id=%s ORDER BY s.source_order''',(row['rag_chunk_id'],)).fetchall()
     return {'matches':rows,'embedding_model':MODEL,'as_of':str(day),
             'review_results_requested':include_review,'no_evidence':not rows}
@@ -245,7 +245,7 @@ def export_vectors(conn,output):
         raise ValueError('No regulation vector table; run embed first.')
     conn.execute('SET LOCAL search_path TO public, extensions')
     rows = conn.execute(f'''SELECT e.rag_chunk_id,e.input_sha256,e.embedding::text AS embedding
-        FROM {TABLE} e JOIN hr_regulation_pilot.rag_chunk c USING (rag_chunk_id)
+        FROM {TABLE} e JOIN regulations.rag_chunks c USING (rag_chunk_id)
         WHERE e.embedding_model=%s AND e.input_version=%s AND e.input_sha256={HASH_SQL}
           AND c.search_status NOT IN ('superseded', 'not_for_answer')
         ORDER BY e.rag_chunk_id''',(MODEL,INPUT_VERSION)).fetchall()

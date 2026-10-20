@@ -19,8 +19,8 @@
 | 앱 접속 | 127.0.0.1:55433 / growpath / postgres |
 | 물리 저장 폴더 | roadmap_app/data/local_db/postgres — PostgreSQL이 관리하며 직접 편집하지 않는다 |
 | 앱 설정 | roadmap_app/.env.local의 로컬 DB 연결이 우선 |
-| 테이블 | 업무 테이블 49개. 과거 workflow는 보관 스키마에 분리 |
-| 사용자 | users를 단일 원본으로 사용하며 정수 ID 유지 |
+| 테이블 | 운영 41개·관리 2개·보관 6개, 전체 49개 |
+| 사용자 | employees를 단일 원본으로 사용하며 기존 정수 ID 유지. users는 호환 뷰 |
 | 검색 | 실제 DB의 규정·스킬·추천 자원과 canonical 벡터 사용 |
 | 가상 데이터 | 사용자·프로젝트 시나리오에만 사용. 자료 사실은 실데이터 사용 |
 
@@ -28,7 +28,9 @@
 
 남은 일: 부족한 MSA·FastAPI/Django 자료와 도서·자격증의 활용 가능한 근거를 공식 출처로 보완한다. 직무·전공의 IT 연결과 상세 내용을 점검한다. 규정의 검토 대기를 승인으로 취급하지 않는다. 학습 데이터의 근거 스냅샷은 수정하지 않는다.
 
-접속·실행·백업 방법은 [로컬 DB 안내](../../roadmap_app/docs/LOCAL_DB_REVIEW_20261020.md), 테이블 구조는 [최신 ERD](../../roadmap_app/docs/통합ERD_1020_로컬DB확인본.html)를 따른다.
+강좌·도서·자격증은 image_url 컬럼에 공식 API 이미지 URL을 저장한다. 강좌 671/718·도서 345/345·자격증 59/66건이며 없는 값은 NULL이다. 직무·전공을 포함한 학습 자원 벡터 1,377개가 최신이고 규정 벡터 1,410개는 별도로 유지한다. 규정 전달용 SQL은 roadmap_app/data/exports/regulations_review_20261020.sql이며 Git에서 제외한다.
+
+접속·실행·백업 방법은 [로컬 DB 안내](LOCAL_DB_REVIEW_20261020.md), 테이블 구조는 [ERD 최종](ERD_최종.html)를 따른다.
 
 ## 2. 파인튜닝 데이터
 
@@ -98,6 +100,6 @@
 
 ## 실행 환경과 연결 확인
 
-최상위 project 아래 roadmap_app과 qwen_factory를 사용한다. roadmap_app은 로컬 전용이고 팩토리만 Cloud에 배포한다. 최상위에는 통합 .env를 만들지 않는다. 실행 명령과 설정·복구는 [팩토리 안내](FINETUNING_GUIDE.md), 로컬 DB 사용법은 [DB 안내](../../roadmap_app/docs/LOCAL_DB_REVIEW_20261020.md)에서 관리한다.
+최상위 project 아래 roadmap_app과 qwen_factory를 사용한다. roadmap_app은 로컬 전용이고 팩토리만 Cloud에 배포한다. 최상위에는 통합 .env를 만들지 않는다. 실행 명령과 설정·복구는 [팩토리 안내](FINETUNING_GUIDE.md), 로컬 DB 사용법은 [DB 안내](LOCAL_DB_REVIEW_20261020.md)에서 관리한다.
 
 이동 후 로드맵 회귀 131건 통과, 팩토리 회귀 47건 통과·Linux 전용 1건 제외. 실제 1,500건 양쪽 사본의 바이트/해시, DB 근거 스냅샷, 팩토리 등록 계획, Cloud 4개 파일 설치의 건수·분할 검증을 통과했다. Cloud 실제 실행·RunPod GPU 실행은 별도 확인 대상이다.

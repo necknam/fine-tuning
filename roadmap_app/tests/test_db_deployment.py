@@ -206,6 +206,7 @@ class DeploymentTests(unittest.TestCase):
         class Result:
             def __init__(self, rows=()): self.rows=rows
             def fetchall(self): return self.rows
+            def fetchone(self): return self.rows[0] if self.rows else {'id': None}
         class Connection:
             def __init__(self): self.applied={}; self.sql=[]
             def execute(self, sql, params=None, **kwargs):
@@ -217,13 +218,13 @@ class DeploymentTests(unittest.TestCase):
                 return Result()
         conn = Connection()
         with patch.object(db,'check_schema'):
-            first = db.migrate(conn)
-            second = db.migrate(conn)
-            self.assertEqual(len(first['applied']),len(list(db.MIGRATIONS.glob('*.sql'))))
+            first = db._migrate_legacy(conn)
+            second = db._migrate_legacy(conn)
+            self.assertEqual(len(first['applied']),len([p for p in db.MIGRATIONS.glob('*.sql') if p.name < '007_']))
             self.assertEqual(second['applied'],[])
             conn.applied[first['applied'][0]] = 'modified'
             with self.assertRaisesRegex(ValueError,'migration changed'):
-                db.migrate(conn)
+                db._migrate_legacy(conn)
 
     def test_bootstrap_requires_actual_skills_before_migration(self):
         with patch.object(db,'read_bundle',return_value=({},{})), patch.object(db,'migrate') as migrate:
