@@ -1,0 +1,43 @@
+# Credentials
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Local environments, IDE, caches and generated results
+.venv/
+.venv-runpod/
+.venv-dashboard/
+.cache/
+.idea/
+__pycache__/
+*.pyc
+reports/
+outputs/
+checkpoints/
+configs/local_connection.json
+configs/local_recipe_*.yaml
+configs/control_*.yaml
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.safetensors
+*.pt
+*.bin
+*.gguf
+
+# Keep production data private; publish only selected sample assets.
+data/*
+!data/sample/
+!data/eval/
+data/sample/*
+!data/sample/processed/
+!data/sample/eval/
+!data/sample/manifest.json
+data/sample/processed/*
+!data/sample/processed/train.jsonl
+!data/sample/processed/validation.jsonl
+data/sample/eval/*
+!data/sample/eval/test.jsonl
+data/eval/*
+!data/eval/prompts.jsonl

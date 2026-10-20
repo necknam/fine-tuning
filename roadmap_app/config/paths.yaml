@@ -1,0 +1,74 @@
+# ==============================================================================
+# 공공데이터 및 외부 연동 API 엔드포인트 설정 (검증 완료 버전)
+# ==============================================================================
+api:
+  kmooc:
+    base_url: "https://apis.data.go.kr/B552881/kmooc_v2_0/courseList_v2_0"
+    detail_url: "https://apis.data.go.kr/B552881/kmooc_v2_0/courseDetail_v2_0"
+    page_size: 50
+
+  library:
+    # 키워드 검색 후 ISBN별 소개·소장 정보를 확인하고 IT 스킬을 연결합니다.
+    base_url: "https://data4library.kr/api/srchBooks"
+    detail_url: "https://data4library.kr/api/srchDtlList"
+    max_pages: 10
+    search_fields: ["title", "keyword"]
+    list_request_budget: 100  # 나머지 호출 예산은 상세·소장 확인에 사용
+    request_budget: 400  # 캐시 적중 제외. 한도 도달 시 정상 확보한 도서는 유지.
+    # kdc_code는 기존 설정을 보존합니다. 현재 keyword 검색의 필터로 전송하지 않습니다.
+    kdc_code: "004"
+    page_size: 50
+    use_mock_books: false
+
+  careernet:
+    base_url: "https://www.career.go.kr/cnet/openapi/getOpenApi.json"
+    jobs_url: "https://www.career.go.kr/cnet/front/openapi/jobs.json"
+    job_detail_url: "https://www.career.go.kr/cnet/front/openapi/job.json"
+    major_url: "https://www.career.go.kr/cnet/openapi/getOpenApi.json"
+    job_queries:
+      - searchAptdCodes: "104740"  # IT 관련 전문직
+      - searchThemeCode: "102420" # AI/로봇
+      - searchThemeCode: "102421" # IT/SW
+    major_keywords: ["컴퓨터", "소프트웨어", "인공지능", "데이터", "정보보안", "정보통신", "게임", "통계", "수학", "전자"]
+    svc_code: "JOB"
+    use_mock_jobs: false
+
+  university:
+    base_url: "https://api.odcloud.kr/api/15014632/v1/uddi:6939f45b-1283-4462-b394-820c26e1445d"
+
+  kdata:
+    base_url: "https://api.odcloud.kr/api/15148115/v1/uddi:070b18af-bb50-46c5-8324-948d91fb5d58"
+  ms_learn:
+    base_url: "https://learn.microsoft.com/api/catalog/"
+    locale: "ko-kr"
+    # 기존 공개 API의 실응답은 확인됨. 신규 Platform API 전환에는 별도 인증 필요.
+
+  ingestion:
+    max_pages: 1000
+    limits:
+      courses: 0
+      books: 0
+      certifications: 200
+      jobs: 100
+      majors: 500
+    # 0은 개수 제한 없음. 상세·IT 스킬·현재 이용 가능성 검증 후에만 적재.
+    book_keywords:
+      - "컴퓨터 비전"
+      - "자연어 처리"
+      - "생성형 AI"
+      - "머신러닝"
+      - "딥러닝"
+      - "데이터베이스"
+      - "SQL"
+      - "데이터 엔지니어링"
+      - "파이썬"
+      - "MLOps"
+      - "리눅스"
+      - "네트워크"
+      - "클라우드"
+      - "도커"
+      - "쿠버네티스"
+      - "자료구조"
+      - "알고리즘"
+      - "소프트웨어"
+      - "정보보안"
