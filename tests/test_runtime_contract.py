@@ -99,3 +99,22 @@ class ReportInputPolicyTests(TestCase):
    self.assertEqual(len(app.exception),0)
    self.assertEqual(app.metric[0].value,'750')
    self.assertIn('1,200',app.metric[0].label)
+
+
+class PresetDeploymentRefresh(TestCase):
+ def test_stale_module_refreshes_before_importing_new_guide(self):
+  import ast
+  import importlib
+  import experiment_presets
+  source=(ROOT/'scripts/local_dashboard.py').read_text(encoding='utf-8')
+  nodes=ast.parse(source).body
+  start=next(i for i,n in enumerate(nodes) if isinstance(n,ast.Import) and any(a.name=='experiment_presets' for a in n.names))
+  stop=next(i for i,n in enumerate(nodes[start:],start) if isinstance(n,ast.ImportFrom) and n.module=='experiment_presets')
+  del experiment_presets.PRESET_GUIDE_MARKDOWN
+  try:
+   env={'importlib':importlib}
+   exec(compile(ast.Module(body=nodes[start:stop+1],type_ignores=[]),'preset-refresh','exec'),env)
+   self.assertEqual(len(env['PRESETS']),25)
+   self.assertIn('P25',env['PRESET_GUIDE_MARKDOWN'])
+  finally:
+   importlib.reload(experiment_presets)

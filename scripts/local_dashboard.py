@@ -15,6 +15,10 @@ import app_settings
 import dashboard_auth
 import recovery
 from runpod_client import RunPodClient
+import importlib
+import experiment_presets
+# Cloud keeps imported helpers between reruns, including across deployments.
+importlib.reload(experiment_presets)
 from experiment_presets import PRESETS, PRESET_GUIDE_MARKDOWN
 from db_registry import sample_mode, validate_dataset_pair, report_input_info
 import dashboard_store
