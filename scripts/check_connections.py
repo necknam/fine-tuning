@@ -1,18 +1,18 @@
-import os
+import argparse
 from pathlib import Path
 
-from dotenv import load_dotenv
+import app_settings
 from huggingface_hub import HfApi
 from sqlalchemy import create_engine, text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(PROJECT_ROOT / ".env")
+SETTINGS = app_settings.read(PROJECT_ROOT)
 
 
 def check_hugging_face():
-    token = os.getenv("HF_TOKEN")
-    repo_id = os.getenv("HF_REPO_ID")
+    token = SETTINGS.get("HF_TOKEN")
+    repo_id = SETTINGS.get("HF_REPO_ID")
 
     if not token or not repo_id:
         print("[FAIL] HF_TOKEN 또는 HF_REPO_ID가 비어 있습니다.")
@@ -31,7 +31,7 @@ def check_hugging_face():
 
 
 def check_database():
-    database_url = os.getenv("DATABASE_URL")
+    database_url = SETTINGS.get("DATABASE_URL")
 
     if not database_url:
         print("[FAIL] DATABASE_URL이 비어 있습니다.")
@@ -63,6 +63,18 @@ def check_database():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Read-only connection checks; never starts a Pod or uploads data.")
+    parser.add_argument("--settings-only", action="store_true", help="Check presence locally without network requests")
+    args = parser.parse_args()
+    if args.settings_only:
+        required = ("DASHBOARD_PASSWORD", "HF_TOKEN", "HF_REPO_ID", "DATABASE_URL", "RUNPOD_JUPYTER_URL", "RUNPOD_JUPYTER_TOKEN")
+        configured = True
+        for key in required:
+            present = bool((SETTINGS.get(key) or "").strip())
+            print(f"[{ 'SET' if present else 'MISSING' }] {key}")
+            configured = configured and present
+        print("Presence only: credentials, permissions and GPU availability were not tested.")
+        raise SystemExit(0 if configured else 1)
     hf_ok = check_hugging_face()
     db_ok = check_database()
     raise SystemExit(0 if hf_ok and db_ok else 1)

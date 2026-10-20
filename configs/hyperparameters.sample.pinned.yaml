@@ -13,6 +13,7 @@ data:
   validation_file: data/sample/processed/validation.jsonl
   format: messages
   expected_train_samples: 54
+  test_file: data/eval/prompts.app_v1.jsonl
 experiments:
 - recipe_name: baseline_r32_lr1e4
   lora:
@@ -53,3 +54,10 @@ experiments:
 # Operational inference setting; training identity is unchanged by generation batch.
 inference:
   batch_size: 8
+
+# Shared report inputs are immutable within this evaluation cohort.
+evaluation:
+  mode: shared_fixed_10
+  file: data/eval/prompts.app_v1.jsonl
+  expected_count: 10
+  sha256: 605e14f7caf762c28b9c86d0b389b80cbaf3e1520906732b1911229ad3602b25

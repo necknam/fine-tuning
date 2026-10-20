@@ -9,7 +9,7 @@ import sys
 import yaml
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, select
-from db_registry import build_plans, runs, artifacts, sample_mode, factory_output
+from db_registry import build_plans, runs, artifacts, sample_mode, factory_output, report_input_info
 
 
 def main():
@@ -63,44 +63,52 @@ def main():
         engine.dispose()
     if len(snapshots)!=2 or {snapshot["trained_epoch"] for snapshot in snapshots}!={4,5}:
         raise ValueError("Expected exactly the registered epoch-4 and epoch-5 artifacts")
-    test_path=(root/cfg["data"].get("test_file","data/sample/eval/test.jsonl")).resolve()
-    test_path.relative_to(root/"data")
-    cases = [json.loads(s) for s in test_path.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
-    if not cases:
-        raise ValueError("Evaluation dataset is empty")
-    print(f"진행 안내: 학습·업로드 완료. 3/3 · {len(cases)}개 입력의 답변을 에포크별로 생성합니다.", flush=True)
-    if args.case_limit is not None and args.case_limit<1:
-        raise ValueError("case-limit must be positive")
-    indices=range(min(len(cases),args.case_limit)) if args.case_limit else range(len(cases))
-    for snapshot in snapshots:
-        if snapshot["status"] not in ("TRAINED", "EVALUATED"):
-            raise RuntimeError("Snapshot upload not complete")
-        adapter = output/"artifacts"/snapshot["weight_id"]
-        pending=[]
-        for index in indices:
-            # Avoid re-generating a completed comparison for the same artifact and conditions.
-            matching = False
-            for f in (root/"reports").glob("smoke_compare_*/comparison.json"):
-                d = json.loads(f.read_text(encoding="utf-8"))
-                if (d.get("factory_manifest",{}).get("weight_id")==snapshot["weight_id"]
-                    and d.get("case_index")==index and d.get("generation",{}).get("max_new_tokens")==2048
-                    and d.get("generation",{}).get("do_sample") is False
-                    and d.get("generation",{}).get("num_beams")==1
-                    and d.get("generation",{}).get("use_cache") is True
-                    and d.get("model")==cfg["model"]
-                    and d.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
-                    and d.get("test_sha256")==__import__("hashlib").sha256(test_path.read_bytes()).hexdigest()
-                    and not d["tuned"]["hit_token_limit"]):
-                    matching=True
-                    break
-            if matching:
-                print(f"진행 안내: {snapshot['trained_epoch']}에포크 · 입력 {index+1}/{len(cases)} · 기존 답변을 사용합니다.", flush=True)
-                continue
-            pending.append(index)
-        if pending:
-            print(f"PIPELINE: compare epoch={snapshot['trained_epoch']} cases={len(pending)}",flush=True)
-            print(f"진행 안내: {snapshot['trained_epoch']}에포크 · BF16 모델을 한 번 로딩해 미완료 {len(pending)}개를 순서대로 생성합니다.",flush=True)
-            execute("compare_factory_sample.py", "--adapter", str(adapter), "--case-indices", *map(str,pending), "--max-new-tokens", "2048")
+    report_input_info(root,cfg)
+    max_new_tokens=cfg.get('inference',{}).get('max_new_tokens',2048)
+    cohorts=[('report',cfg['data'].get('test_file','data/sample/eval/test.jsonl'))]
+    if cfg['data'].get('heldout_test_file'):
+        cohorts.append(('heldout',cfg['data']['heldout_test_file']))
+    for cohort,cohort_file in cohorts:
+        report_prefix='heldout_compare_' if cohort=='heldout' else 'smoke_compare_'
+        print('평가 묶음: '+cohort+'; 별도 지정한 case-limit이 없으면 전체 입력을 평가합니다.',flush=True)
+        test_path=(root/cohort_file).resolve()
+        test_path.relative_to(root/"data")
+        cases = [json.loads(s) for s in test_path.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
+        if not cases:
+            raise ValueError("Evaluation dataset is empty")
+        print(f"진행 안내: 학습·업로드 완료. 3/3 · {len(cases)}개 입력의 답변을 에포크별로 생성합니다.", flush=True)
+        if args.case_limit is not None and args.case_limit<1:
+            raise ValueError("case-limit must be positive")
+        indices=range(min(len(cases),args.case_limit)) if args.case_limit else range(len(cases))
+        for snapshot in snapshots:
+            if snapshot["status"] not in ("TRAINED", "EVALUATED"):
+                raise RuntimeError("Snapshot upload not complete")
+            adapter = output/"artifacts"/snapshot["weight_id"]
+            pending=[]
+            for index in indices:
+                # Avoid re-generating a completed comparison for the same artifact and conditions.
+                matching = False
+                for f in (root/"reports").glob(report_prefix+"*/comparison.json"):
+                    d = json.loads(f.read_text(encoding="utf-8"))
+                    if (d.get("factory_manifest",{}).get("weight_id")==snapshot["weight_id"]
+                        and d.get("case_index")==index and d.get("generation",{}).get("max_new_tokens")==max_new_tokens
+                        and d.get("generation",{}).get("do_sample") is False
+                        and d.get("generation",{}).get("num_beams")==1
+                        and d.get("generation",{}).get("use_cache") is True
+                        and d.get("model")==cfg["model"]
+                        and d.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
+                        and d.get("test_sha256")==__import__("hashlib").sha256(test_path.read_bytes()).hexdigest()
+                        and not d["tuned"]["hit_token_limit"]):
+                        matching=True
+                        break
+                if matching:
+                    print(f"진행 안내: {snapshot['trained_epoch']}에포크 · 입력 {index+1}/{len(cases)} · 기존 답변을 사용합니다.", flush=True)
+                    continue
+                pending.append(index)
+            if pending:
+                print(f"PIPELINE: compare epoch={snapshot['trained_epoch']} cases={len(pending)}",flush=True)
+                print(f"진행 안내: {snapshot['trained_epoch']}에포크 · BF16 모델을 한 번 로딩해 미완료 {len(pending)}개를 순서대로 생성합니다.",flush=True)
+                execute("compare_factory_sample.py", "--adapter", str(adapter), "--case-indices", *map(str,pending), "--max-new-tokens", str(max_new_tokens), "--cohort", cohort)
     print("진행 안내: 답변 생성 완료. 로컬 보고서를 동기화한 뒤 입력별로 1~5점 평가하세요.", flush=True)
     print("PIPELINE COMPLETE: ready for human evaluation", flush=True)
 

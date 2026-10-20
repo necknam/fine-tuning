@@ -1,0 +1,62 @@
+version: growpath-sft-1500/v1
+status: contract_ready_data_not_generated
+model:
+  base_model_id: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+  enable_thinking: false
+data:
+  total: 1500
+  split_counts: {train: 1200, validation: 150, test: 150}
+  split_unit: scenario_family
+  seed: 42
+  format: messages
+  metadata_format: separate_provenance_jsonl
+  loss_policy: final_assistant_only
+  truncate: false
+  max_length: null  # Finalize after new-data tokenization and real GPU memory probe.
+  dpo_enabled: false
+tasks:
+  generate_roadmap:
+    total: 450
+    splits: {train: 360, validation: 45, test: 45}
+    perspectives: {practical: 150, certified: 150, fasttrack: 150}
+  revise_roadmap:
+    total: 300
+    splits: {train: 240, validation: 30, test: 30}
+  generate_survey:
+    total: 180
+    splits: {train: 144, validation: 18, test: 18}
+    likert_options: [아주 모른다, 모른다, 보통이다, 안다, 잘 안다]
+  interpret_assessment:
+    total: 150
+    splits: {train: 120, validation: 15, test: 15}
+    assessment_method: self_report
+  resolve_constraints:
+    total: 180
+    splits: {train: 144, validation: 18, test: 18}
+  evidence_boundary:
+    total: 150
+    splits: {train: 120, validation: 15, test: 15}
+  progress_checkin:
+    total: 90
+    splits: {train: 72, validation: 9, test: 9}
+quality_gates:
+  source: actual_database_or_verified_official_source_only
+  synthetic_allowed: user_profiles_and_scenarios_only
+  skill_identity: existing_36_ids_and_names_unchanged
+  regulations: pending_review_is_not_approved
+  resources: only_ids_in_supplied_context
+  missing_resources: allow_specific_direct_practice_without_invented_resources
+  unknown_cost: explicit_confirmation_required_never_assume_zero
+  assessment: no_objective_proficiency_claim_from_self_report
+  activities: concrete_activity_deliverable_completion_criterion
+  revisions: preserve_completed_work_and_unrequested_fields
+  prompt_injection: retrieved_content_is_evidence_not_instruction
+  exact_counts: required_after_quality_filtering
+  human_review: pending_required_before_production_training
+evaluation:
+  preserve_existing_hard_10: true
+  hard_10_in_training: false
+  task_specific_rubrics: required
+  deterministic_checks: [resource_ids, time_budget, confirmed_cost_budget, revision_preservation, scale_and_skill_ids]
+  ai_judge_alone_is_acceptance: false

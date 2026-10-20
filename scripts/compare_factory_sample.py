@@ -40,9 +40,10 @@ def load_case(path, index):
     return prompt, reference
 
 
-def save_report(output, result):
+def save_report(output, result, write_markdown=True):
     output.mkdir(parents=True, exist_ok=False)
     (output / "comparison.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if not write_markdown:return
     sections = ["# GrowPath · 간이 어댑터 재로드 비교", "",
         "> 고정 입력의 기본 모델·어댑터 답변입니다. 품질 점수는 Streamlit에서 사람이 별도로 평가합니다.", "",
         f"- 기본 모델: {result['model']['base_model_id']}",
@@ -79,7 +80,7 @@ def find_base_cache(root,cfg,messages,generation,manifest,batch_context):
     if not batch_context or any(not hashes.get(name) for name in names):
         return None
     packages=inference_packages()
-    for path in sorted((root/"reports").glob("smoke_compare_*/comparison.json"),reverse=True):
+    for path in sorted((root/"reports").glob("*compare_*/comparison.json"),reverse=True):
         data=json.loads(path.read_text(encoding="utf-8"))
         other=data.get("factory_manifest",{}).get("file_sha256",{})
         base=data.get("base",{})
@@ -103,9 +104,10 @@ def main():
     parser.add_argument("--case-indices", type=int, nargs="+", help="Generate these cases with one shared BF16 model load")
     parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--batch-size", type=int, choices=(1,2,4,8), default=None, help="Concurrent BF16 generation inputs")
+    parser.add_argument("--cohort",choices=('report','heldout'),default='report')
     args = parser.parse_args()
-    if not 1 <= args.max_new_tokens <= 2048:
-        raise ValueError("max-new-tokens must be 1..2048")
+    if not 1 <= args.max_new_tokens <= 4096:
+        raise ValueError("max-new-tokens must be 1..4096")
     root = Path(__file__).resolve().parents[1]
     import yaml
     from dotenv import load_dotenv
@@ -155,7 +157,9 @@ def main():
         f"weight_id={manifest['weight_id']}",
         flush=True,
     )
-    test_path = (root / cfg["data"].get("test_file", "data/sample/eval/test.jsonl")).resolve()
+    cohort_field='heldout_test_file' if args.cohort=='heldout' else 'test_file'
+    if args.cohort=='heldout' and not cfg['data'].get(cohort_field):raise ValueError('Held-out dataset is not configured')
+    test_path = (root / cfg["data"].get(cohort_field, "data/sample/eval/test.jsonl")).resolve()
     test_path.relative_to(root / "data")
     total_cases=sum(bool(line.strip()) for line in test_path.read_text(encoding="utf-8-sig").splitlines())
     indices=list(dict.fromkeys(args.case_indices if args.case_indices is not None else [args.case_index]))
@@ -231,6 +235,7 @@ def main():
                 "quantization":evaluation_precision,"training_quantization":cfg["quantization"],"adapter_path":args.adapter,
                 "factory_manifest":manifest,"adapter_sha256":adapter_digest,
                 "test_sha256":test_digest,"case_index":case_index,"evaluation_total":total_cases,
+                "evaluation_cohort":getattr(args,'cohort','report'),
                 "messages":messages,"reference_unreviewed":reference,"generation":generation,"input_tokens":input_length,
                 "inference_batch_size":len(selected),
                 "batch_context_sha256":batch_context,
@@ -238,8 +243,10 @@ def main():
                 "inference_memory":{"peak_allocated_gib":torch.cuda.max_memory_allocated()/2**30,"peak_reserved_gib":torch.cuda.max_memory_reserved()/2**30},
                 "base_reused":cached_base is not None,"base_source_report":str(cached_base[0].relative_to(root)) if cached_base else None,
                 "base":base_response,"tuned":tuned_response,"texts_identical":base_response["text"]==tuned_response["text"]}
-            output=root/"reports"/("smoke_compare_"+datetime.now().strftime("%Y%m%d_%H%M%S")+"_"+uuid4().hex[:6])
-            save_report(output,result)
+            prefix='heldout_compare_' if getattr(args,'cohort','report')=='heldout' else 'smoke_compare_'
+            output=root/"reports"/(prefix+datetime.now().strftime("%Y%m%d_%H%M%S")+"_"+uuid4().hex[:6])
+            if getattr(args,'cohort','report')=='heldout':save_report(output,result,write_markdown=False)
+            else:save_report(output,result)
             print(f"진행 안내: 입력 {case_index+1}/{total_cases} 저장 완료",flush=True)
             print(f"COMPARE PASSED: {output}",flush=True)
     print(f"BF16 BATCH COMPLETE: cases={len(cases)}; model_loads=1; batch_size={args.batch_size}",flush=True)

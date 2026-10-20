@@ -5,6 +5,7 @@ import json
 import random
 import re
 import unicodedata
+import shutil
 from pathlib import Path
 
 
@@ -35,12 +36,56 @@ def validate(row):
     return next(normalize(m["content"]) for m in messages if m["role"] == "user")
 
 
+def import_curated_release(source, root):
+    """Import an already grouped 1200/150/150 release without re-splitting it."""
+    source=Path(source).resolve();root=Path(root).resolve()
+    manifest=json.loads((source/'manifest.json').read_text(encoding='utf-8'))
+    counts={'train':1200,'validation':150,'test':150}
+    if manifest.get('selected')!=1500 or manifest.get('split_counts')!=counts:
+        raise ValueError('Expected the curated 1500-record release with 1200/150/150 splits')
+    expected=manifest['files_sha256']
+    names=[f'sft_{s}.jsonl' for s in counts]+['provenance.jsonl','sample_review.json']
+    for name in names:
+        if hashlib.sha256((source/name).read_bytes()).hexdigest()!=expected[name]:
+            raise ValueError('Release file hash mismatch: '+name)
+    provenance=[json.loads(l) for l in (source/'provenance.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+    if len(provenance)!=1500:raise ValueError('Expected 1500 provenance records')
+    families={};seen_prompts=set();seen_ids=set()
+    for split,count in counts.items():
+        rows=[json.loads(l) for l in (source/f'sft_{split}.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+        metadata=[r for r in provenance if r['split']==split]
+        if len(rows)!=count or len(metadata)!=count:raise ValueError('Release split count mismatch')
+        prompts=set()
+        for row,info in zip(rows,metadata):
+            prompt=validate(row);prompts.add(prompt)
+            sha=hashlib.sha256(json.dumps(row,ensure_ascii=False,sort_keys=True,default=str).encode('utf-8')).hexdigest()
+            if sha!=info['sha256'] or info['id'] in seen_ids:raise ValueError('Provenance binding or duplicate ID error')
+            seen_ids.add(info['id'])
+            family=info['family_id']
+            if family in families and families[family]!=split:raise ValueError('Cross-split project family')
+            families[family]=split
+        if seen_prompts & prompts:raise ValueError('Cross-split user prompt overlap')
+        seen_prompts.update(prompts)
+    target=root/'data/production/curation_1500'
+    if target.exists():raise ValueError('Curated import exists; refusing overwrite')
+    target.mkdir(parents=True)
+    for split in counts:shutil.copyfile(source/f'sft_{split}.jsonl',target/f'{split}.jsonl')
+    for name in ('provenance.jsonl','manifest.json','sample_review.json'):shutil.copyfile(source/name,target/name)
+    return {'status':'IMPORTED_WITH_ORIGINAL_FAMILY_SPLITS','counts':counts,'target':str(target),
+            'training_started':False,'reshuffled':False,'external_upload':False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True, type=Path)
+    mode=parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--input", type=Path)
+    mode.add_argument("--release", type=Path, help="Import an existing 1200/150/150 release without random re-splitting")
     parser.add_argument("--seed", default=42, type=int)
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    if args.release:
+        print(json.dumps(import_curated_release(args.release,root),ensure_ascii=False,indent=2))
+        return
     source = args.input.resolve()
     if not source.is_file():
         raise SystemExit(f"Input file missing: {source}")

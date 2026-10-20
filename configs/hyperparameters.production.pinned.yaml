@@ -1,0 +1,71 @@
+schema_version: 1
+model:
+  base_model_id: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+data:
+  train_file: data/production/curation_1500/train.jsonl
+  validation_file: data/production/curation_1500/validation.jsonl
+  format: messages
+  expected_train_samples: 1200
+  test_file: data/eval/prompts.app_v1.jsonl
+  loss_policy: final_assistant_only
+  train_sha256: 6c85a7e5681fb62c892d999a3653a1050445e7fcaae70c53c5262aabb0a8f034
+  validation_sha256: 1850c2cfc1a723b2e948f7e51b9da014f4696c223255f3bcbc3071e15bcd7b08
+  heldout_test_file: data/production/curation_1500/test.jsonl
+  heldout_sha256: f1c47f12f5d2fb565d11731dcd48366716399a0fb6ab7f2d9ef21ade3026ddbc
+  expected_heldout_samples: 150
+  minimum_max_length: 6858
+experiments:
+- recipe_name: curated_1500_r32_lr1e4
+  lora:
+    r: 32
+    lora_alpha: 64
+    lora_dropout: 0.05
+    bias: none
+    target_modules: all-linear
+    scope: language_model
+  training:
+    num_train_epochs: 5
+    learning_rate: 0.0001
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    weight_decay: 0.01
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    per_device_eval_batch_size: 1
+    max_length: 7168
+    packing: false
+    bf16: true
+    gradient_checkpointing: true
+    optim: paged_adamw_8bit
+    seed: 42
+    data_seed: 42
+    logging_steps: 10
+    eval_strategy: epoch
+  artifacts:
+    save_epochs:
+    - 4
+    - 5
+  checkpoints:
+    save_strategy: steps
+    save_steps: 50
+    save_total_limit: 3
+    save_only_model: false
+inference:
+  batch_size: 1
+  max_new_tokens: 3072
+evaluation:
+  mode: shared_fixed_10
+  file: data/eval/prompts.app_v1.jsonl
+  expected_count: 10
+  sha256: 605e14f7caf762c28b9c86d0b389b80cbaf3e1520906732b1911229ad3602b25
+dataset_mode: production
+readiness:
+  token_length_verified: true
+  gpu_memory_and_speed_verified: false
+  training_started: false

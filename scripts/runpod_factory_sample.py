@@ -61,7 +61,9 @@ def upload_snapshot(api, engine, lease, repo_id, path, record, plan):
             time.sleep(2 ** attempt)
 
 
-def encode_all(path, tokenizer, max_length):
+def encode_all(path, tokenizer, max_length, loss_policy="all_tokens"):
+    if loss_policy not in ("all_tokens", "final_assistant_only"):
+        raise ValueError("Unsupported loss policy")
     encoded = []
     for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
         if not line.strip():
@@ -73,7 +75,21 @@ def encode_all(path, tokenizer, max_length):
             raise ValueError(f"Unexpected tokens at line {number}")
         if len(ids) > max_length:
             raise ValueError(f"Line {number} has {len(ids)} tokens > {max_length}; no truncation performed")
-        encoded.append(dict(input_ids=ids, attention_mask=[1] * len(ids), labels=ids.copy()))
+        labels = ids.copy()
+        if loss_policy == "final_assistant_only":
+            messages = row["messages"]
+            if len(messages) < 2 or messages[-1]["role"] != "assistant" or messages[-2]["role"] != "user":
+                raise ValueError(f"Final user/assistant pair required at line {number}")
+            if not isinstance(messages[-1]["content"], str) or not messages[-1]["content"].strip():
+                raise ValueError(f"Empty assistant at line {number}")
+            prefix = tokenizer.apply_chat_template(messages[:-1], tokenize=True,
+                add_generation_prompt=True, enable_thinking=False, return_dict=False)
+            if not prefix or len(prefix) >= len(ids) or ids[:len(prefix)] != prefix:
+                raise ValueError(f"Template prefix mismatch at line {number}; refusing an incorrect loss mask")
+            labels[:len(prefix)] = [-100] * len(prefix)
+            if not any(value != -100 for value in labels):
+                raise ValueError(f"No assistant supervision at line {number}")
+        encoded.append(dict(input_ids=ids, attention_mask=[1] * len(ids), labels=labels))
     if not encoded:
         raise ValueError("Empty tokenized dataset")
     return encoded
@@ -92,6 +108,8 @@ def check_settings(cfg):
         raise ValueError("Pinned model revision required")
     if cfg["data"]["format"] != "messages" or len(cfg["experiments"]) != 1:
         raise ValueError("Expected one messages-format recipe")
+    if not sample_mode(cfg) and cfg["data"].get("loss_policy", "final_assistant_only") != "final_assistant_only":
+        raise ValueError("Production requires final_assistant_only loss")
     recipe = cfg["experiments"][0]
     t, q, lora, cp = recipe["training"], cfg["quantization"], recipe["lora"], recipe["checkpoints"]
     if t["num_train_epochs"] != 5 or sorted(recipe["artifacts"]["save_epochs"]) != [4, 5]:
@@ -121,13 +139,14 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     recipe = cfg["experiments"][0]
     t = recipe["training"]
     output = factory_output(root,record["run_id"],plan["config"]["is_sample"])
+    loss_policy = cfg["data"].get("loss_policy", "all_tokens" if sample_mode(cfg) else "final_assistant_only")
     versions = {name: importlib.metadata.version(name) for name in
                 ("torch", "transformers", "peft", "accelerate", "bitsandbytes", "huggingface_hub", "SQLAlchemy", "psycopg")}
     # Kernel changes affect numerical execution and must invalidate incompatible resumes.
     for name in ("causal-conv1d","flash-linear-attention","fla-core","einops","triton"):
         try:versions[name]=importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:pass
-    runtime = {"pipeline": "sample_factory_v1" if plan["config"]["is_sample"] else "production_factory_v1", "loss": "all_conversation_tokens",
+    runtime = {"pipeline": "sample_factory_v1" if plan["config"]["is_sample"] else "production_factory_v1", "loss": loss_policy,
         "config_hash": plan["config_hash"], "model": cfg["model"], "packages": versions,
         "cuda": torch.version.cuda,
         "script_sha256": {name: digest(root / "scripts" / name) for name in
@@ -154,15 +173,15 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
-    training = encode_all(root / cfg["data"]["train_file"], tokenizer, t["max_length"])
-    validation = encode_all(root / cfg["data"]["validation_file"], tokenizer, t["max_length"])
+    training = encode_all(root / cfg["data"]["train_file"], tokenizer, t["max_length"], loss_policy=loss_policy)
+    validation = encode_all(root / cfg["data"]["validation_file"], tokenizer, t["max_length"], loss_policy=loss_policy)
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise ValueError("Exactly one visible CUDA GPU required")
     gpu = torch.cuda.get_device_properties(0)
     if "A100" not in gpu.name or gpu.total_memory < 75 * 2**30 or not torch.cuda.is_bf16_supported():
         raise ValueError("A100 80GB with BF16 required")
     print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'}: train={len(training)} validation={len(validation)}; epochs=5; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
-    print("Loss is over all conversation tokens; "+("synthetic integration test." if sample_mode(cfg) else "production dataset; assess quality using held-out answers."), flush=True)
+    print("Loss policy: "+loss_policy+"; "+("synthetic integration test." if sample_mode(cfg) else "production dataset; assess quality using held-out answers."), flush=True)
     if not output.exists():
         output.mkdir(parents=True, exist_ok=False)
         (output / "runtime_manifest.json").write_text(json.dumps(runtime, indent=2), encoding="utf-8")

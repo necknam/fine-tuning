@@ -98,8 +98,30 @@ def dataset_info(root, relative, is_sample):
     return {"sha256": digest(path), "rows": count}
 
 
+def report_input_info(root, config):
+    """Validate a shared frozen report cohort; legacy configurations remain readable."""
+    policy=config.get('evaluation')
+    if policy is None:return None
+    if policy.get('mode')!='shared_fixed_10' or policy.get('expected_count')!=10:
+        raise ValueError('Expected the shared fixed report cohort of ten inputs')
+    relative=policy.get('file')
+    if not isinstance(relative,str):raise ValueError('Report input path is required')
+    root=Path(root).resolve();path=(root/relative).resolve()
+    if not path.is_relative_to(root/'data'/'eval'):
+        raise ValueError('Fixed report input must stay inside data/eval')
+    if config.get('data',{}).get('test_file',relative)!=relative:
+        raise ValueError('Report input override would break the common comparison cohort')
+    if not path.is_file() or digest(path)!=policy.get('sha256'):
+        raise ValueError('Common report inputs changed; use an explicit new evaluation version')
+    rows=[json.loads(s) for s in path.read_text(encoding='utf-8-sig').splitlines() if s.strip()]
+    if len(rows)!=10 or any(not isinstance(r,dict) or not isinstance(r.get('messages'),list) or not r['messages'] for r in rows):
+        raise ValueError('The fixed report file must contain ten messages inputs')
+    return {'file':relative,'rows':len(rows),'sha256':policy['sha256']}
+
+
 def build_plans(root, config_path, is_sample):
     config = yaml.safe_load(config_path.read_text(encoding="utf-8-sig"))
+    report_input_info(root,config)
     if config.get("schema_version") != 1:
         raise ValueError("Unsupported schema_version")
     if sample_mode(config) != is_sample:
@@ -116,6 +138,17 @@ def build_plans(root, config_path, is_sample):
                               (root/data['validation_file']).read_text(encoding='utf-8-sig'))
     if train["sha256"] == validation["sha256"]:
         raise ValueError("Training and validation files are identical")
+    heldout=None
+    if data.get('heldout_test_file'):
+        heldout=dataset_info(root,data['heldout_test_file'],is_sample)
+        if heldout['rows']!=data.get('expected_heldout_samples'):
+            raise ValueError('Held-out sample count mismatch')
+        if heldout['sha256']!=data.get('heldout_sha256'):
+            raise ValueError('Held-out dataset changed after submission')
+        _,heldout_prompts=training_text((root/data['heldout_test_file']).read_text(encoding='utf-8-sig'))
+        for field in ('train_file','validation_file'):
+            _,other_prompts=training_text((root/data[field]).read_text(encoding='utf-8-sig'))
+            if heldout_prompts & other_prompts:raise ValueError('Held-out prompts overlap training or validation')
     expected = data.get("expected_train_samples")
     if expected is not None and expected != train["rows"]:
         raise ValueError(f"Expected {expected} training rows; found {train['rows']}")
@@ -149,6 +182,7 @@ def build_plans(root, config_path, is_sample):
         if config.get('experiment_id'):
             uuid.UUID(config['experiment_id'])
             canonical.update(identity_version=2,experiment_id=config['experiment_id'])
+        if heldout is not None:canonical['data']['heldout']=heldout
         blob = json.dumps(canonical, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         plans.append({"recipe_name": experiment["recipe_name"],
                       "config_hash": hashlib.sha256(blob.encode()).hexdigest(),

@@ -50,8 +50,6 @@ python -m streamlit run streamlit_app.py
 4. Pod를 켠 뒤 연결 및 독립 복구 서비스 기동을 확인합니다.
 5. 기존 어댑터의 소수 입력으로 실제 실행을 확인한 뒤, 브라우저를 닫고 다시 열어 결과가 저장됐는지 확인합니다.
 
-2026-10-19 실제 RunPod A100에서 샘플 학습·HF 업로드·BF16 보고서·Neon 저장·CPU 수집 서비스 중단/재기동을 검증했습니다. Linux 회귀 검사 10개와 실제 AI v3 평가도 통과했습니다. 세부 결과와 남은 장애 주입 검증 범위는 CODEX_HANDOFF.md를 참조하세요.
-Neon의 격리된 테스트 영역에서 작업 소유권, 만료 인계, 완료 재사용, 실패 후 수동 재시도를 검증했습니다.
 
 공식 문서:
 https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy

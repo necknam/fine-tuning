@@ -95,7 +95,7 @@ def sync_snapshot(root,overview):
         uuid.UUID(run)
         documents['reports/run_configs/'+run+'.yaml']=text
         data=yaml.safe_load(text).get('data',{})
-        for field in ('train_file','validation_file','test_file'):
+        for field in ('train_file','validation_file','test_file','heldout_test_file'):
             relative=data.get(field)
             if relative and dashboard_store.allowed(relative) and (root/relative).is_file():
                 documents[relative]=(root/relative).read_text(encoding='utf-8')

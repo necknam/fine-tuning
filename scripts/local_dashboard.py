@@ -15,8 +15,8 @@ import app_settings
 import dashboard_auth
 import recovery
 from runpod_client import RunPodClient
-from experiment_presets import PRESETS
-from db_registry import sample_mode, validate_dataset_pair
+from experiment_presets import PRESETS, PRESET_GUIDE_MARKDOWN
+from db_registry import sample_mode, validate_dataset_pair, report_input_info
 import dashboard_store
 import human_reports
 import ai_evaluation
@@ -251,7 +251,7 @@ def measured_training_speed(text, expected_steps):
 
 def show_measured_estimate(job,started,kst):
     import math
-    with st.expander("3,000개 · 5에포크 학습 예상 · 실측 속도 기준",expanded=True):
+    with st.expander("현재 학습 설정의 예상 시간 · 실측 속도 기준",expanded=True):
         config=job.get("config")
         path=ROOT/config if config else None
         if not path or not path.is_file():
@@ -273,12 +273,12 @@ def show_measured_estimate(job,started,kst):
         if speed is None:
             st.info("학습 속도 측정 중 · 학습 진행 로그가 쌓이면 예상 시간이 표시됩니다.")
             return
-        target_steps=math.ceil(3000/effective)*5
+        target_steps=steps
         seconds=target_steps*speed
-        st.metric("3,000개 · 5에포크 예상 학습 시간",duration_text(seconds))
+        st.metric(f"학습 {count:,}개 · {int(training['num_train_epochs'])}에포크 예상 학습 시간",duration_text(seconds))
         if started:
             end=datetime.fromtimestamp(started,kst)+timedelta(seconds=seconds)
-            st.write("**같은 시작 시각에 3,000개로 학습했다면: "+end.strftime("%m/%d %H:%M")+" 학습 종료 예상**")
+            st.caption("작업 시작 시각을 기준으로 순수 학습 시간만 더한 참고 시각: "+end.strftime("%m/%d %H:%M"))
         st.caption(f"측정 {speed:.1f}초/스텝 × {target_steps:,}스텝 · GPU 1장 / 유효 배치 {effective}. 최근 최대 5개 학습 속도의 중앙값을 사용합니다.")
         st.caption("현재 샘플의 처리 속도를 실제 데이터에 적용한 참고값입니다. 실제 데이터 길이가 달라지면 달라집니다. 모델 로딩·검증·저장·답변 생성 시간은 제외하며, 전체 보고서 완료 시각으로 표시하지 않습니다.")
 
@@ -336,12 +336,12 @@ with st.sidebar:
         st.caption("현재 모델 · 실행 설정 기준")
         st.markdown("**"+model_settings["model"]["base_model_id"]+"**")
         st.caption("학습: 4비트 QLoRA · 평가: 원본 BF16 + 어댑터")
-    auto_ai=st.toggle("새 답변 전체 자동 AI 평가",value=True,key="auto_ai_evaluation")
+    auto_ai=st.toggle("새 답변 전체 자동 AI 평가",value=False,key="auto_ai_evaluation")
     st.caption("입력·답변을 OpenAI API로 전송하며 호출 비용이 발생합니다. 이미 평가한 답변은 건너뜁니다.")
     st.header("RunPod 연결")
     settings_path = ROOT / "configs/local_connection.json"
     saved = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {}
-    url = st.text_input("Jupyter 주소", app_settings.get(ROOT,"RUNPOD_JUPYTER_URL",saved.get("url", "https://wsmwv2tt9t8txp-8888.proxy.runpod.net")))
+    url = st.text_input("Jupyter 주소", app_settings.get(ROOT,"RUNPOD_JUPYTER_URL",saved.get("url", "")))
     token = st.text_input("Jupyter 토큰 또는 비밀번호", type="password", value=app_settings.get(ROOT,"RUNPOD_JUPYTER_TOKEN", ""))
     st.caption("RunPod의 JUPYTER_PASSWORD 또는 Jupyter 로그인에 쓴 값입니다. HF 토큰·RunPod API 키와 다릅니다.")
     remote = st.text_input("Jupyter 내 프로젝트 경로", app_settings.get(ROOT,"RUNPOD_REMOTE_PATH",saved.get("remote_path", "workspace/qwen_factory")))
@@ -446,7 +446,8 @@ def publish(cfg):
     test=cfg["data"].get("test_file","data/sample/eval/test.jsonl")
     test_path=(ROOT/test).resolve()
     test_path.relative_to((ROOT/"data").resolve())
-    test_text=test_path.read_text(encoding="utf-8-sig")
+    # Preserve frozen evaluation bytes (including CRLF) across Windows -> Linux.
+    test_text=test_path.read_bytes().decode('utf-8')
     evaluation_rows=[json.loads(line) for line in test_text.splitlines() if line.strip()]
     if not evaluation_rows:
         raise ValueError("평가 입력 파일이 비어 있습니다.")
@@ -459,13 +460,26 @@ def publish(cfg):
         prompt=messages[:-1] if messages[-1]["role"]=="assistant" else messages
         if not prompt or prompt[-1]["role"]!="user":
             raise ValueError(f"평가 입력 {number}행은 user 요청으로 끝나야 합니다.")
-    test_snapshot=prefix+"/eval/control_"+hashlib.sha256(test_text.encode()).hexdigest()[:20]+".jsonl"
+    fixed_report=report_input_info(ROOT,cfg)
+    test_snapshot=fixed_report['file'] if fixed_report else prefix+"/eval/control_"+hashlib.sha256(test_text.encode()).hexdigest()[:20]+".jsonl"
     local_snapshot=ROOT/test_snapshot
     local_snapshot.parent.mkdir(parents=True,exist_ok=True)
-    local_snapshot.write_text(test_text,encoding="utf-8")
+    local_snapshot.write_text(test_text,encoding="utf-8",newline='')
     dashboard_store.persist(ROOT,local_snapshot)
     c.ensure_file(test_snapshot,test_text)
     cfg["data"]["test_file"]=test_snapshot
+    if cfg['data'].get('heldout_test_file'):
+        heldout=(ROOT/cfg['data']['heldout_test_file']).resolve()
+        heldout.relative_to((ROOT/'data/production').resolve())
+        heldout_text=heldout.read_bytes().decode('utf-8')
+        heldout_hash=hashlib.sha256(heldout_text.encode()).hexdigest()
+        if heldout_hash!=cfg['data'].get('heldout_sha256'):
+            raise ValueError('최종 평가 데이터 해시가 변경됐습니다.')
+        heldout_snapshot=prefix+'/eval/heldout_'+heldout_hash+'.jsonl'
+        local_heldout=ROOT/heldout_snapshot;local_heldout.parent.mkdir(parents=True,exist_ok=True)
+        local_heldout.write_text(heldout_text,encoding='utf-8',newline='')
+        dashboard_store.persist(ROOT,local_heldout);c.ensure_file(heldout_snapshot,heldout_text)
+        cfg['data']['heldout_test_file']=heldout_snapshot
     payload=yaml.safe_dump(cfg,allow_unicode=True,sort_keys=False)
     name="configs/control_"+hashlib.sha256(payload.encode()).hexdigest()[:20]+".yaml"
     (ROOT/name).write_text(payload,encoding="utf-8")
@@ -488,18 +502,23 @@ with experiment_tab:
         preset=st.selectbox("파라미터 프리셋",range(len(options)),index=1,format_func=lambda i:options[i][0]+" "+options[i][1])
         pid,pname,changes,reason=options[preset]
         st.caption(reason)
-        base=yaml.safe_load((ROOT/"configs/hyperparameters.sample.pinned.yaml").read_text(encoding="utf-8-sig"))
+        production_config=ROOT/'configs/hyperparameters.production.pinned.yaml'
+        config_source=production_config if dataset_mode=='production' and production_config.is_file() else ROOT/'configs/hyperparameters.sample.pinned.yaml'
+        base=yaml.safe_load(config_source.read_text(encoding="utf-8-sig"))
         base["dataset_mode"]=dataset_mode
         data_ready=True
         if dataset_mode=="sample":
             st.info("샘플 시험 · 가상 학습54개 / 검증3개. 실제 학습과 가중치·보고서를 구분합니다.")
         else:
-            st.info("실제 데이터 학습 · 학습/검증 JSONL을 각각 올리세요. 같은 파라미터의 샘플 가중치를 사용하지 않습니다.")
+            st.info("실제 데이터 학습 · 준비된 데이터를 사용하거나 학습/검증 JSONL을 교체할 수 있습니다.")
             train_upload=st.file_uploader("실제 학습 데이터 · messages JSONL",type=["jsonl"],key="production_train")
             validation_upload=st.file_uploader("실제 검증 데이터 · messages JSONL",type=["jsonl"],key="production_validation")
-            data_ready=False
-            base["data"].update(train_file="data/production/processed/train.pending.jsonl",
-                validation_file="data/production/processed/validation.pending.jsonl",expected_train_samples=None)
+            data_ready=config_source==production_config and all((ROOT/base['data'][field]).is_file() for field in ('train_file','validation_file','heldout_test_file'))
+            if data_ready:
+                st.caption('준비된 데이터: 학습 1,200건 · 검증 150건 · 최종 평가 150건 · 공통 비교 입력 10개')
+            else:
+                base["data"].update(train_file="data/production/processed/train.pending.jsonl",
+                    validation_file="data/production/processed/validation.pending.jsonl",expected_train_samples=None)
             if train_upload is not None and validation_upload is not None:
                 try:
                     train_text=train_upload.getvalue().decode("utf-8-sig").replace("\r\n","\n").replace("\r","\n")
@@ -512,11 +531,16 @@ with experiment_tab:
                         path.write_text(text,encoding="utf-8",newline="")
                         base["data"][field+"_file"]=path.relative_to(ROOT).as_posix()
                     base["data"]["expected_train_samples"]=train_count
+                    for field in ('heldout_test_file','heldout_sha256','expected_heldout_samples','minimum_max_length'):
+                        base['data'].pop(field,None)
                     data_ready=True
                     st.success(f"실제 데이터 확인: 학습 {train_count:,}개 / 검증 {validation_count:,}개 · 학습/검증 요청 중복 없음")
                 except (ValueError,UnicodeError) as error:
                     st.error("데이터를 확인하세요: "+str(error))
-            else:
+            elif train_upload is not None or validation_upload is not None:
+                data_ready=False
+                st.caption('데이터를 교체하려면 학습·검증 파일을 모두 올리세요.')
+            elif not data_ready:
                 st.caption("두 파일을 모두 올리면 실험 등록 버튼이 활성화됩니다. 데이터는 GitHub에 올리지 않습니다.")
         recipe=base["experiments"][0]
         with st.expander("현재 데이터 위치"):
@@ -527,29 +551,13 @@ with experiment_tab:
                 {"구분":"평가 입력", "로컬 파일":"아래 평가 입력 파일 선택 항목 참조"},
             ],hide_index=True)
         defaults={**recipe["training"],**recipe["lora"],**changes}
-        evaluation_files=["data/sample/eval/test.jsonl"]+[p.relative_to(ROOT).as_posix() for p in sorted((ROOT/"data/eval").glob("*.jsonl"))]
-        default_eval="data/eval/prompts.jsonl"
-        eval_upload=st.file_uploader("다른 평가 입력 업로드 · 선택 사항",type=["jsonl"],key="custom_evaluation_upload")
-        if eval_upload is not None:
-            try:
-                eval_text=eval_upload.getvalue().decode("utf-8-sig").replace("\r\n","\n").replace("\r","\n")
-                rows=[json.loads(line) for line in eval_text.splitlines() if line.strip()]
-                if not rows or any(not isinstance(row,dict) or not isinstance(row.get("messages"),list) or not row["messages"] for row in rows):
-                    raise ValueError("messages 배열이 있는 JSONL을 올리세요.")
-                uploaded_eval="data/eval/upload_"+hashlib.sha256(eval_text.encode()).hexdigest()+".jsonl"
-                path=ROOT/uploaded_eval;path.parent.mkdir(parents=True,exist_ok=True)
-                path.write_text(eval_text,encoding="utf-8",newline="")
-                if uploaded_eval not in evaluation_files:evaluation_files.append(uploaded_eval)
-                default_eval=uploaded_eval
-            except (ValueError,UnicodeError) as error:
-                data_ready=False
-                st.error("평가 입력 확인: "+str(error))
-        evaluation_file=st.selectbox("평가 입력 파일",evaluation_files,index=evaluation_files.index(default_eval) if default_eval in evaluation_files else 0)
+        evaluation_file=base['evaluation']['file']
         try:
-            evaluation_count=sum(bool(line.strip()) for line in (ROOT/evaluation_file).read_text(encoding="utf-8-sig").splitlines())
-            st.caption(f"{evaluation_count}개 입력 · 각 입력에 대한 답변을 생성하고 종합 1~5점으로 평가합니다.")
-        except OSError:
-            st.error("평가 입력 파일을 읽을 수 없습니다.")
+            common_report=report_input_info(ROOT,base)
+            st.caption(f"공통 평가 입력 {common_report['rows']}개 · 모든 새 실험에 같은 입력을 사용합니다.")
+        except (OSError,ValueError) as error:
+            data_ready=False
+            st.error("공통 평가 입력을 확인하세요: "+str(error))
         with st.form("parameters_"+pid):
             label=st.text_input("실험 이름",value=pid+" "+pname)
             a,b,c=st.columns(3)
@@ -568,7 +576,7 @@ with experiment_tab:
                 batch=st.number_input("GPU 배치 크기",min_value=1,max_value=16,value=int(defaults["per_device_train_batch_size"]))
                 accumulation=st.number_input("그래디언트 누적",min_value=1,max_value=256,value=int(defaults["gradient_accumulation_steps"]))
                 checkpointing=st.checkbox("재계산 사용 · GPU 메모리 절약",value=bool(defaults.get("gradient_checkpointing",True)),help="기본값은 켜짐입니다. 끄기는 GPU 배치 1에서만 허용하며, 약 770토큰 샘플에서 더 빨랐습니다. 긴 입력에서는 메모리가 부족할 수 있습니다. 중단 복구용 체크포인트 저장은 계속합니다.")
-                length=st.selectbox("최대 토큰 길이",[1024,2048,4096,8192],index=[1024,2048,4096,8192].index(defaults["max_length"]))
+                length=st.selectbox("최대 토큰 길이",[1024,2048,4096,7168,8192],index=[1024,2048,4096,7168,8192].index(defaults["max_length"]))
                 decay=st.number_input("가중치 감쇠",min_value=0.0,max_value=1.0,value=float(defaults["weight_decay"]),step=0.01)
             with c:
                 warmup=st.number_input("워밍업 비율",min_value=0.0,max_value=0.9,value=float(defaults["warmup_ratio"]),step=0.05)
@@ -582,9 +590,11 @@ with experiment_tab:
             try:
                 if not checkpointing and int(batch)!=1:
                     raise ValueError("재계산을 끄려면 GPU 배치를 1로 설정하세요. 유효 배치 16을 유지하려면 누적은 16입니다.")
+                if int(length)<base['data'].get('minimum_max_length',0):
+                    raise ValueError('현재 준비된 데이터의 최대 길이보다 작습니다. 길이 제한을 늘려 주세요.')
                 base["experiment_id"]=str(uuid.uuid4())
                 base["data"]["test_file"]=evaluation_file
-                base["inference"]={"batch_size":int(generation_batch)}
+                base.setdefault('inference',{}).update(batch_size=int(generation_batch))
                 recipe["recipe_name"]=label
                 recipe["lora"].update(r=int(rank),lora_alpha=int(alpha),lora_dropout=float(dropout))
                 recipe["training"].update(learning_rate=float(lr),per_device_train_batch_size=int(batch),
@@ -1051,7 +1061,8 @@ with setup_tab:
     if setup_tab.open:
         st.markdown((ROOT/"README.md").read_text(encoding="utf-8"))
         with st.expander("추천 파라미터 25개"):
-            st.markdown((ROOT/"PARAMETER_PRESETS.md").read_text(encoding="utf-8"))
+            st.caption("현재 실제 학습 기준은 배치 1 × 누적 16 · 최대 길이 7168입니다. 아래 25개는 샘플 기준 탐색 후보이며 자동 실행하지 않습니다.")
+            st.markdown(PRESET_GUIDE_MARKDOWN)
         if st.button("연결 시험 작업 (GPU 사용 없음)"):
             try:
                 connection().call("runpod_bridge.submit('probe', label='연결 시험')")
