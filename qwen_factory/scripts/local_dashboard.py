@@ -499,12 +499,13 @@ st.session_state["_previous_page"]=st.session_state.get("main_navigation")
 with experiment_tab:
     if experiment_tab.open:
         load_view("history",force=page_changed)
-        st.subheader("파라미터를 바꾸고 실험을 등록하세요")
+        st.subheader("실험 설정")
         st.caption("등록 → 5에포크 학습 또는 재개 → 4·5에포크 저장·업로드 → 같은 평가 입력으로 답변 생성 → 보고서 저장까지 자동 진행합니다.")
-        dataset_mode=st.radio("학습 데이터 구분",["sample","production"],horizontal=True,
-            format_func=lambda value:"샘플 시험" if value=="sample" else "실제 데이터 학습",key="dataset_mode")
+        dataset_mode=st.radio("학습 데이터 구분",["production","sample"],horizontal=True,
+            format_func=lambda value:"샘플 시험" if value=="sample" else "실제 데이터 학습",key="dataset_mode_v2")
         st.caption("새 실험 등록은 항상 새 실행 ID를 만듭니다. 기존 가중치 사용과 중단 실험 이어하기는 해당 보고서·실행 이력에서만 선택합니다.")
-        options=[("P00","커스텀",{},"기준 권장값에서 시작해 아래 파라미터를 직접 수정하세요.")]+PRESETS
+        available_presets=[p for p in PRESETS if dataset_mode=="sample" or p[2].get("max_length",7168)>=6858]
+        options=[("P00","커스텀",{},"확정 기준에서 시작해 아래 값을 수정하세요.")]+available_presets
         preset=st.selectbox("파라미터 프리셋",range(len(options)),index=1,format_func=lambda i:options[i][0]+" "+options[i][1])
         pid,pname,changes,reason=options[preset]
         st.caption(reason)
@@ -517,14 +518,18 @@ with experiment_tab:
             st.info("샘플 시험 · 가상 학습54개 / 검증3개. 실제 학습과 가중치·보고서를 구분합니다.")
         else:
             st.info("확정 데이터: 학습 1,200 · 검증 150 · 별도 평가 150 · 공통 비교 입력 10개. Cloud에는 파일을 직접 업로드하세요.")
-            uploads={
-                'train':st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train"),
-                'validation':st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation"),
-                'heldout':st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout"),
-                'report':st.file_uploader("공통 입력 prompts.app_v1.jsonl",type=["jsonl"],key="production_report"),
-            }
             fields=('train_file','validation_file','heldout_test_file')
             data_ready=config_source==production_config and all((ROOT/base['data'][field]).is_file() for field in fields) and (ROOT/base['evaluation']['file']).is_file()
+            with st.expander("학습·평가 데이터 준비" if not data_ready else "데이터 확인·교체",expanded=not data_ready):
+                st.caption("학습 1200 · 검증 150 · 별도 평가 150 · 공통 입력 10개. 확정한 파일을 모두 올리세요.")
+                left,right=st.columns(2)
+                with left:
+                    train_upload=st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train")
+                    heldout_upload=st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout")
+                with right:
+                    validation_upload=st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation")
+                    report_upload=st.file_uploader("공통 입력 prompts.app_v1.jsonl",type=["jsonl"],key="production_report")
+                uploads={'train':train_upload,'validation':validation_upload,'heldout':heldout_upload,'report':report_upload}
             if any(value is not None for value in uploads.values()):
                 data_ready=False
                 if all(value is not None for value in uploads.values()):
@@ -544,9 +549,9 @@ with experiment_tab:
         with st.expander("현재 데이터 위치"):
             st.caption("선택한 학습/검증 파일을 내용 해시로 고정해 전송합니다. 학습 등록 후 파일 내용이 바뀌면 실행을 차단합니다.")
             st.dataframe([
-                {"구분":"학습", "로컬 파일":str(ROOT/base["data"]["train_file"])},
-                {"구분":"검증", "로컬 파일":str(ROOT/base["data"]["validation_file"])},
-                {"구분":"평가 입력", "로컬 파일":"아래 평가 입력 파일 선택 항목 참조"},
+                {"구분":"학습", "파일":base["data"]["train_file"]},
+                {"구분":"검증", "파일":base["data"]["validation_file"]},
+                {"구분":"평가 입력", "파일":base["data"]["test_file"]},
             ],hide_index=True)
         defaults={**recipe["training"],**recipe["lora"],**changes}
         evaluation_file=base['evaluation']['file']
@@ -555,35 +560,38 @@ with experiment_tab:
             st.caption(f"공통 평가 입력 {common_report['rows']}개 · 모든 새 실험에 같은 입력을 사용합니다.")
         except (OSError,ValueError) as error:
             data_ready=False
-            st.error("공통 평가 입력을 확인하세요: "+str(error))
-        with st.form("parameters_"+pid):
+            st.caption("공통 비교 입력 파일이 준비되면 실험을 등록할 수 있습니다.")
+        with st.form("parameters_"+dataset_mode+"_"+pid):
             label=st.text_input("실험 이름",value=pid+" "+pname)
+            st.markdown("**기본 학습 설정**")
             a,b,c=st.columns(3)
             with a:
-                lr_options=[1e-4,7.5e-5,5e-5,2.5e-5,1.5e-4,2e-4,None]
-                lr_choice=st.selectbox("학습률",lr_options,index=lr_options.index(float(defaults["learning_rate"])),
-                    format_func=lambda v:"직접 입력값 사용" if v is None else f"{v:.6f} ({v:.1e})")
-                with st.expander("학습률 직접 입력"):
-                    custom_lr=st.number_input("직접 입력할 학습률",min_value=0.000001,max_value=0.01,
-                        value=float(defaults["learning_rate"]),step=0.000025,format="%.6f")
-                lr=custom_lr if lr_choice is None else lr_choice
+                lr=st.number_input("학습률",min_value=0.000001,max_value=0.01,
+                    value=float(defaults["learning_rate"]),step=0.000025,format="%.6f")
                 rank=st.selectbox("LoRA r",[8,16,32,64,128],index=[8,16,32,64,128].index(defaults["r"]))
-                alpha=st.number_input("LoRA alpha",min_value=1,value=int(defaults["lora_alpha"]),step=8)
-                dropout=st.number_input("LoRA dropout",min_value=0.0,max_value=0.5,value=float(defaults["lora_dropout"]),step=0.05)
             with b:
                 batch=st.number_input("GPU 배치 크기",min_value=1,max_value=16,value=int(defaults["per_device_train_batch_size"]))
                 accumulation=st.number_input("그래디언트 누적",min_value=1,max_value=256,value=int(defaults["gradient_accumulation_steps"]))
-                checkpointing=st.checkbox("재계산 사용 · GPU 메모리 절약",value=bool(defaults.get("gradient_checkpointing",True)),help="기본값은 켜짐입니다. 끄기는 GPU 배치 1에서만 허용하며, 약 770토큰 샘플에서 더 빨랐습니다. 긴 입력에서는 메모리가 부족할 수 있습니다. 중단 복구용 체크포인트 저장은 계속합니다.")
-                length=st.selectbox("최대 토큰 길이",[1024,2048,4096,7168,8192],index=[1024,2048,4096,7168,8192].index(defaults["max_length"]))
-                decay=st.number_input("가중치 감쇠",min_value=0.0,max_value=1.0,value=float(defaults["weight_decay"]),step=0.01)
             with c:
-                warmup=st.number_input("워밍업 비율",min_value=0.0,max_value=0.9,value=float(defaults["warmup_ratio"]),step=0.05)
-                scheduler=st.selectbox("학습률 스케줄",["cosine","linear","constant"],index=["cosine","linear","constant"].index(defaults["lr_scheduler_type"]))
-                seed=st.number_input("시드",min_value=0,value=int(defaults["seed"]))
-                generation_batch=st.selectbox("답변 동시 생성 개수",[1,2,4,8],index=[1,2,4,8].index(base.get("inference",{}).get("batch_size",1)),help="학습 배치와 별개입니다. 메모리가 부족하면 1로 낮추세요.")
-                priority=st.selectbox("대기열 우선순위",[10,0,20],format_func=lambda v:{0:"높음",10:"보통",20:"낮음"}[v])
-            st.caption("총 5에포크 · 4/5에포크 저장 · NF4/BF16 · 언어 모델 Linear 계층. 높은 우선순위도 현재 실행 중인 작업을 중단하지 않습니다.")
-            start=st.form_submit_button("새 실험 등록 · 실행 중이면 다음 순서로",type="primary",disabled=not data_ready)
+                lengths=[n for n in (1024,2048,4096,7168,8192) if n>=base['data'].get('minimum_max_length',0)]
+                length=st.selectbox("최대 토큰 길이",lengths,index=lengths.index(defaults["max_length"]))
+                alpha=st.number_input("LoRA alpha",min_value=1,value=int(defaults["lora_alpha"]),step=8)
+            with st.expander("고급 설정 · 정규화·스케줄·평가"):
+                a,b=st.columns(2)
+                with a:
+                    dropout=st.number_input("LoRA dropout",min_value=0.0,max_value=0.5,value=float(defaults["lora_dropout"]),step=0.05)
+                    decay=st.number_input("가중치 감쇠",min_value=0.0,max_value=1.0,value=float(defaults["weight_decay"]),step=0.01)
+                    warmup=st.number_input("워밍업 비율",min_value=0.0,max_value=0.9,value=float(defaults["warmup_ratio"]),step=0.05)
+                    scheduler=st.selectbox("학습률 스케줄",["cosine","linear","constant"],index=["cosine","linear","constant"].index(defaults["lr_scheduler_type"]))
+                with b:
+                    seed=st.number_input("시드",min_value=0,value=int(defaults["seed"]))
+                    checkpointing=st.checkbox("재계산으로 GPU 메모리 절약",value=bool(defaults.get("gradient_checkpointing",True)),help="긴 입력에서는 켜짐을 권장합니다. 끄기는 GPU 배치 1에서만 허용합니다.")
+                    generation_batch=st.selectbox("답변 동시 생성 개수",[1,2,4,8],index=[1,2,4,8].index(base.get("inference",{}).get("batch_size",1)),help="학습 배치와 별개이며 메모리가 부족하면 1로 설정하세요.")
+                    priority=st.selectbox("대기열 우선순위",[10,0,20],format_func=lambda v:{0:"높음",10:"보통",20:"낮음"}[v])
+            st.caption("5에포크 학습 · 4/5에포크 저장 · NF4/BF16 · 현재 실행 중인 작업 뒤에 등록")
+            start=st.form_submit_button("새 실험 등록",type="primary",disabled=not data_ready)
+        if not data_ready:
+            st.caption("데이터 준비를 완료하면 등록 버튼이 활성화됩니다.")
         if start:
             try:
                 if not checkpointing and int(batch)!=1:

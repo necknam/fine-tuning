@@ -118,3 +118,28 @@ class PresetDeploymentRefresh(TestCase):
    self.assertIn('P25',env['PRESET_GUIDE_MARKDOWN'])
   finally:
    importlib.reload(experiment_presets)
+
+
+class ParameterPanelTests(TestCase):
+ def test_production_default_and_mode_switch_keep_matching_lengths(self):
+  from streamlit.testing.v1 import AppTest
+  source=(ROOT/'scripts/local_dashboard.py').read_text(encoding='utf-8')
+  start=source.index('        st.subheader("실험 설정")')
+  end=source.index('        if start:',start)
+  import textwrap
+  panel=textwrap.dedent(source[start:end])
+  prefix=("from pathlib import Path\nimport streamlit as st\nimport yaml,hashlib\n"
+          +"from experiment_presets import PRESETS\nimport prepare_data\nfrom db_registry import report_input_info\nROOT=Path("+repr(str(ROOT))+")\n")
+  app=AppTest.from_string(prefix+panel,default_timeout=15).run()
+  self.assertFalse(app.exception)
+  self.assertEqual(app.radio[0].value,'production')
+  length=lambda:next(w.value for w in app.selectbox if w.label=='최대 토큰 길이')
+  self.assertEqual(length(),7168)
+  self.assertTrue(any(x.label=='고급 설정 · 정규화·스케줄·평가' for x in app.expander))
+  app.radio[0].set_value('sample').run()
+  self.assertFalse(app.exception)
+  self.assertEqual(length(),2048)
+  app.radio[0].set_value('production').run()
+  self.assertFalse(app.exception)
+  self.assertEqual(length(),7168)
+  self.assertNotIn(2048,next(w.options for w in app.selectbox if w.label=='최대 토큰 길이'))
