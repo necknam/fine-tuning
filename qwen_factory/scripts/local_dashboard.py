@@ -1049,22 +1049,48 @@ with guide_tab:
         st.subheader("파라미터 설명 · 설정할 때 참고하세요")
         st.caption("현재 실행 기준과 상세 설명을 함께 확인할 수 있습니다. 설명을 읽어도 실행 설정은 바뀌지 않습니다.")
         guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.production.pinned.yaml').read_text(encoding='utf-8-sig'))
-        st.markdown("#### 확정 데이터 학습 기준")
-        st.json({'model':guide_config['model'],'lora':guide_config['experiments'][0]['lora'],
-                 'training':guide_config['experiments'][0]['training']})
-        st.caption("등록할 실험의 최종 설정은 파라미터 화면과 해당 보고서에서 확인하세요. GPU 메모리·속도는 실제 점검 전입니다.")
-        st.markdown("| 항목 | 의미 |\n| --- | --- |\n| learning_rate | 한 번의 업데이트 크기 |\n| r / alpha | 어댑터 용량과 업데이트 배율 |\n| dropout / weight_decay | 학습 중 정규화 |\n| batch / accumulation | GPU 배치와 누적 업데이트 간격 |\n| max_length | 입력과 답변의 최대 합계 토큰 수 |\n| warmup / scheduler | 초기 학습률과 이후 변화 방식 |\n| seed | 반복 실험의 난수 기준 |")
-        st.caption("현재 최대 길이 7168은 확정 데이터 최대 6858토큰을 수용합니다. 길이를 줄여 데이터를 조용히 자르지 않습니다.")
+        training=guide_config['experiments'][0]['training']
+        lora=guide_config['experiments'][0]['lora']
+        st.caption("확정 데이터의 기준 설정입니다. 선택한 실험에서 수정한 값은 파라미터 화면과 실행 보고서에서 확인하세요.")
+        a,b,c=st.columns(3)
+        a.metric("학습 횟수",f"{training['num_train_epochs']} epoch")
+        b.metric("유효 배치",str(training['per_device_train_batch_size']*training['gradient_accumulation_steps']))
+        c.metric("최대 입력·답변 길이",f"{training['max_length']:,} 토큰")
+        st.info("이번 학습: 1,200건 학습 · 150건 검증 · 150건 별도 평가. 모든 비교에 같은 보고서 입력 10개를 사용합니다.")
+        st.markdown("### 파라미터를 이해하는 순서")
+        cards=[
+            ("01 · 학습률",f"현재 **{training['learning_rate']:.5f}** · 한 번에 모델을 얼마나 조정할지 정합니다.",
+             "너무 크게 바꾸면 학습이 불안정할 수 있고, 너무 작으면 변화가 충분하지 않을 수 있습니다. 다른 조건을 고정하고 비교합니다."),
+            ("02 · LoRA 용량",f"현재 **r={lora['r']} / alpha={lora['lora_alpha']}** · 추가로 학습할 어댑터의 용량과 배율입니다.",
+             "r을 높이면 어댑터의 용량과 메모리 요구가 커질 수 있습니다. alpha와 r의 비율도 함께 확인합니다."),
+            ("03 · 배치와 누적",f"현재 **GPU 배치 {training['per_device_train_batch_size']} × 누적 {training['gradient_accumulation_steps']} = 유효 배치 {training['per_device_train_batch_size']*training['gradient_accumulation_steps']}** · GPU 1장 기준입니다.",
+             "배치는 한 번에 처리하는 수, 누적은 가중치를 갱신하기 전 모으는 횟수입니다. 같은 곱이어도 속도·메모리·학습 결과가 완전히 같지는 않습니다."),
+            ("04 · 최대 토큰 길이",f"현재 **{training['max_length']:,}토큰** · 질문·검색 근거·답변을 합한 길이입니다.",
+             f"확정 데이터 최대 {guide_config['data']['minimum_max_length']:,}토큰을 수용합니다. 길이를 줄여 데이터를 잘라내지 않습니다. 실제 GPU 메모리 적합성은 사전 점검합니다."),
+            ("05 · 정규화와 스케줄",f"현재 **dropout {lora['lora_dropout']} / weight decay {training['weight_decay']} / warmup {training['warmup_ratio']} / {training['lr_scheduler_type']}**",
+             "dropout과 weight decay는 학습을 규제하고, warmup은 초기 학습률을 점진적으로 높입니다. 스케줄은 이후 학습률의 변화를 정합니다."),
+            ("06 · 학습 횟수와 비교",f"현재 **{training['num_train_epochs']} epoch · 4/5 epoch 저장 · seed {training['seed']}**",
+             "epoch는 학습 데이터를 반복해서 보는 횟수입니다. 검증 결과와 별도 평가를 함께 보고 어댑터를 고릅니다. 더 오래 학습했다고 반드시 좋아지는 것은 아닙니다."),
+        ]
+        for offset in range(0,len(cards),2):
+            columns=st.columns(2)
+            for column,(title,summary,explanation) in zip(columns,cards[offset:offset+2]):
+                with column:
+                    with st.container(border=True):
+                        st.markdown("#### "+title)
+                        st.markdown(summary)
+                        st.caption(explanation)
+        st.caption("재계산(gradient checkpointing)은 GPU 메모리를 줄이기 위한 설정입니다. 답변 동시 생성 수는 학습 배치와 별개입니다. 학습 속도·성능은 실제 측정 전입니다.")
         with st.expander("파라미터 탐색 후보 25개"):
-            st.caption("샘플 기준 후보입니다. 실제 데이터 기준 설정과 구분하며 자동으로 전부 실행하지 않습니다.")
+            st.caption("샘플 기준에서 만든 탐색 후보입니다. 실제 학습 길이는 7168이며 25개를 자동으로 모두 실행하지 않습니다.")
             st.markdown(PRESET_GUIDE_MARKDOWN)
+        with st.expander("개발자용 원본 설정 JSON",expanded=False):
+            st.json({'model':guide_config['model'],'lora':lora,'training':training})
 
 with setup_tab:
     if setup_tab.open:
         st.markdown((ROOT/"README.md").read_text(encoding="utf-8"))
-        with st.expander("추천 파라미터 25개"):
-            st.caption("현재 실제 학습 기준은 배치 1 × 누적 16 · 최대 길이 7168입니다. 아래 25개는 샘플 기준 탐색 후보이며 자동 실행하지 않습니다.")
-            st.markdown(PRESET_GUIDE_MARKDOWN)
+        st.caption("파라미터 의미와 탐색 후보 25개는 파라미터 설명 탭에서 확인하세요.")
         if st.button("연결 시험 작업 (GPU 사용 없음)"):
             try:
                 connection().call("runpod_bridge.submit('probe', label='연결 시험')")

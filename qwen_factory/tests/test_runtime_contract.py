@@ -143,3 +143,22 @@ class ParameterPanelTests(TestCase):
   self.assertFalse(app.exception)
   self.assertEqual(length(),7168)
   self.assertNotIn(2048,next(w.options for w in app.selectbox if w.label=='최대 토큰 길이'))
+
+
+class ParameterGuideTests(TestCase):
+ def test_guide_starts_with_summary_and_keeps_raw_json_collapsed(self):
+  import textwrap
+  from streamlit.testing.v1 import AppTest
+  source=(ROOT/'scripts/local_dashboard.py').read_text(encoding='utf-8')
+  start=source.index('        st.subheader("파라미터 설명')
+  end=source.index('\nwith setup_tab:',start)
+  prefix=("from pathlib import Path\nimport streamlit as st\nimport yaml\n"
+          +"from experiment_presets import PRESET_GUIDE_MARKDOWN\nROOT=Path("+repr(str(ROOT))+")\n")
+  app=AppTest.from_string(prefix+textwrap.dedent(source[start:end]),default_timeout=15).run()
+  self.assertFalse(app.exception)
+  self.assertEqual([m.value for m in app.metric],['5 epoch','16','7,168 토큰'])
+  headings=[m.value for m in app.markdown]
+  self.assertTrue(any('01 · 학습률' in x for x in headings))
+  self.assertTrue(any('06 · 학습 횟수와 비교' in x for x in headings))
+  raw=next(x for x in app.expander if x.label=='개발자용 원본 설정 JSON')
+  self.assertFalse(raw.proto.expanded)
