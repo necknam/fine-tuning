@@ -377,7 +377,7 @@ with st.sidebar:
                     raise ValueError("세 값을 모두 입력하세요.")
                 values = {"HF_TOKEN": hf, "HF_REPO_ID": repo, "DATABASE_URL": database}
                 connection().execute("import os\nos.environ.update(" + repr(values) + ")\n"
-                    "os.environ['HF_HOME']='/workspace/qwen_factory/.cache/huggingface'\n"
+                    "os.environ['HF_HOME']='/workspace/.cache/huggingface'\n"
                     "os.environ['PIP_CACHE_DIR']='/workspace/qwen_factory/.cache/pip'\n")
                 st.session_state.remote_secrets = values
                 st.session_state.pop("recovery_service_ready",None)
