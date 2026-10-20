@@ -81,7 +81,7 @@ def persist(root, path):
 
 def allowed(key):
     return (key in ('reports/candidate_versions.json','reports/control_history.json') or
-        bool(re.fullmatch(r'reports/smoke_compare_[^/]+/comparison.json', key)) or
+        bool(re.fullmatch(r'reports/(?:smoke|heldout)_compare_[^/]+/comparison.json', key)) or
         bool(re.fullmatch(r'reports/run_configs/[^/]+\.yaml', key)) or
         bool(re.fullmatch(r'reports/human_evaluations/[^/]+\.json', key)) or
         bool(re.fullmatch(r'data/sample/eval/[^/]+\.jsonl', key)) or

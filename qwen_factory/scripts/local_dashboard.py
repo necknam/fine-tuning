@@ -807,7 +807,10 @@ with review_tab:
         def review():
             dashboard_auth.checkpoint(ROOT)
             precision_view=st.selectbox("평가 결과 유형",["최신 결과","BF16 결과","4비트 시험 결과"],key="precision_view")
-            groups=human_reports.catalog(ROOT,{"BF16 결과":"bf16","4비트 시험 결과":"4bit"}.get(precision_view))
+            cohort_label=st.selectbox("평가 데이터",["공통 입력 10개 · 출력 비교","별도 평가 150건 · 기준 답변 비교"],key="evaluation_cohort_view")
+            cohort="heldout" if cohort_label.startswith("별도") else "report"
+            groups=human_reports.catalog(ROOT,{"BF16 결과":"bf16","4비트 시험 결과":"4bit"}.get(precision_view),cohort=cohort)
+            st.caption("기준 답변은 확정 데이터의 답변이며 전수 전문가 검수를 거친 정답은 아닙니다." if cohort=="heldout" else "같은 10개 입력의 출력을 비교합니다. 이 묶음에는 기준 답변이 없습니다.")
             mode_view=st.selectbox("학습 구분",["전체","실제 데이터 학습","샘플 시험"],key="report_mode_view")
             if mode_view!="전체":
                 groups={weight:group for weight,group in groups.items()
@@ -986,6 +989,10 @@ with review_tab:
             with st.container(border=True,key="answer_card"):
                 st.subheader("모델 답변 · 학습 로드맵 보고서")
                 show_answer(report["tuned"])
+            if report.get("reference_unreviewed") is not None:
+                with st.expander("고정 기준 답변 · 전문가 검수 미완료"):
+                    st.code(report["reference_unreviewed"],language="json",wrap_lines=True)
+                    st.caption("기준 답변 SHA-256: "+str(report.get("reference_sha256","이전 결과 · 데이터 해시 참조")))
             with st.expander("기본 모델 답변과 비교"):
                 if report.get("base_reused"):
                     st.caption("같은 BF16 모델·입력·생성 조건·토크나이저로 이미 생성한 기본 답변입니다. 생성 시간은 최초 생성 때의 기록입니다.")

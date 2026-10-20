@@ -72,7 +72,7 @@ def main():
         report_prefix='heldout_compare_' if cohort=='heldout' else 'smoke_compare_'
         print('평가 묶음: '+cohort+'; 별도 지정한 case-limit이 없으면 전체 입력을 평가합니다.',flush=True)
         test_path=(root/cohort_file).resolve()
-        test_path.relative_to(root/"data")
+        test_path.relative_to((root/"data").resolve())
         cases = [json.loads(s) for s in test_path.read_text(encoding="utf-8-sig").splitlines() if s.strip()]
         if not cases:
             raise ValueError("Evaluation dataset is empty")

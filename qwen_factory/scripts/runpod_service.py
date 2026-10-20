@@ -76,7 +76,7 @@ def start(auto_ai=True):
 def fingerprint(root):
     paths=[]
     for pattern in ('outputs/control_jobs/*/job.json','outputs/control_jobs/*/job.log',
-                    'reports/smoke_compare_*/comparison.json','outputs/factory_*/*/config.yaml'):
+                    'reports/smoke_compare_*/comparison.json','reports/heldout_compare_*/comparison.json','outputs/factory_*/*/config.yaml'):
         for p in Path(root).glob(pattern):
             st=p.stat();paths.append((str(p.relative_to(root)),st.st_size,st.st_mtime_ns))
     return hashlib.sha256(json.dumps(sorted(paths)).encode()).hexdigest()

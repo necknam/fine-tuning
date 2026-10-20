@@ -197,7 +197,7 @@ def overview():
     configurations = {f.parent.name: f.read_text() for f in (ROOT/"outputs").glob("factory_*/*/config.yaml")}
     observed_at = time.time()
     return dict(jobs=status(), observed_at=observed_at, snapshots=snapshots, configurations=configurations,
-                reports=[str(f.relative_to(ROOT)) for f in (ROOT / "reports").glob("smoke_compare_*/comparison.json")],
+                reports=[str(f.relative_to(ROOT)) for pattern in ("smoke_compare_*/comparison.json","heldout_compare_*/comparison.json") for f in (ROOT / "reports").glob(pattern)],
                 scripts=[f.name for f in (ROOT / "scripts").glob("*.py")])
 
 

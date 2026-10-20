@@ -34,10 +34,12 @@ def version_guard(folder):
                 fcntl.flock(guard,fcntl.LOCK_UN)
 
 
-def catalog(root, precision=None):
+def catalog(root, precision=None, cohort="report"):
+    if cohort not in ("report","heldout"):raise ValueError("Unknown evaluation cohort")
+    pattern="heldout_compare_*/comparison.json" if cohort=="heldout" else "smoke_compare_*/comparison.json"
     groups = {}
     reports=[]
-    for path in sorted((root/"reports").glob("smoke_compare_*/comparison.json")):
+    for path in sorted((root/"reports").glob(pattern)):
         report = json.loads(path.read_text(encoding="utf-8"))
         q=report.get("quantization",{})
         if precision=="bf16" and not (q.get("load_in_4bit") is False and q.get("dtype")=="bfloat16"):
@@ -48,13 +50,15 @@ def catalog(root, precision=None):
         weight = manifest.get("weight_id")
         if weight:
             reports.append((path,report,manifest,weight))
+    def conditions(report):
+        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort")},sort_keys=True)
     latest_sets={}
     for path,report,manifest,weight in reports:
         if weight not in latest_sets or report["created_at"]>latest_sets[weight][0]:
-            latest_sets[weight]=(report["created_at"],report.get("test_sha256"),report.get("quantization"))
+            latest_sets[weight]=(report["created_at"],conditions(report))
     for path,report,manifest,weight in reports:
-        if report.get("test_sha256")==latest_sets[weight][1] and report.get("quantization")==latest_sets[weight][2]:
-            group = groups.setdefault(weight, {"manifest":manifest, "cases":{}})
+        if conditions(report)==latest_sets[weight][1]:
+            group = groups.setdefault(weight, {"manifest":manifest, "cases":{},"cohort":cohort})
             key = report["case_index"]
             if key not in group["cases"] or report["created_at"] > group["cases"][key][1]["created_at"]:
                 group["cases"][key] = (path, report)
@@ -99,6 +103,8 @@ def title(root, weight, group):
 def case_signature(report):
     keys=("model","quantization","messages","generation","test_sha256","case_index","adapter_sha256")
     payload={k:report.get(k) for k in keys}
+    for k in ("evaluation_cohort","reference_sha256"):
+        if k in report:payload[k]=report[k]
     payload["answer"]=report["tuned"]["text"]
     return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
 
@@ -208,6 +214,8 @@ def render(root, weight, group):
              "AI 모델: "+ai['model'],"AI 평가 기준: "+ai_evaluation.RUBRIC_VERSION,"각 입력을 동일 비중으로 평균하며 미평가·판단 불가 점수는 제외합니다. 사람과 AI 점수는 합산하지 않습니다.",""]
     for case,(path,d) in sorted(group["cases"].items()):
         rows += [f"## 입력 {case+1}","","### 입력","","```json",json.dumps(d["messages"],ensure_ascii=False,indent=2),"```",""]
+        if d.get("reference_unreviewed") is not None:
+            rows += ["### 고정 기준 답변 · 전수 의미 검수 미완료","",d["reference_unreviewed"],""]
         for key,name in (("base","기본 모델"),("tuned","어댑터 적용")):
             rows += [f"### {name}","",f"생성 {d[key]['tokens']}토큰 · 길이 제한 도달: {d[key]['hit_token_limit']}","","```text",d[key]["text"],"```",""]
         entry=ai_evaluation.latest(root,weight,d,ai["model"])

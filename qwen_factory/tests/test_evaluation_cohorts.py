@@ -105,3 +105,35 @@ class CuratedCloudUploadTests(unittest.TestCase):
             root=Path(folder)
             with self.assertRaises(ValueError):install_curated_uploads(root,uploads,cfg)
             self.assertFalse((root/'data').exists())
+
+
+class CohortReportStorageTests(unittest.TestCase):
+    def test_both_cohorts_can_sync_without_allowing_arbitrary_documents(self):
+        import dashboard_store
+        self.assertTrue(dashboard_store.allowed('reports/heldout_compare_run/comparison.json'))
+        self.assertTrue(dashboard_store.allowed('reports/smoke_compare_run/comparison.json'))
+        self.assertFalse(dashboard_store.allowed('reports/heldout_compare_run/secrets.json'))
+
+    def test_catalog_separates_cohorts_and_generation_conditions(self):
+        import human_reports
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder).resolve();(root/'reports').mkdir()
+            (root/'reports/candidate_versions.json').write_text(json.dumps({'weight':1}))
+            def add(prefix,name,index,created,tokens):
+                path=root/'reports'/(prefix+name);path.mkdir()
+                row={'created_at':created,'case_index':index,'test_sha256':prefix,
+                     'factory_manifest':{'weight_id':'weight','run_id':'run','trained_epoch':5},
+                     'quantization':{'dtype':'bfloat16','load_in_4bit':False},'generation':{'max_new_tokens':tokens}}
+                (path/'comparison.json').write_text(json.dumps(row))
+            add('smoke_compare_','old',0,'1',100)
+            add('smoke_compare_','new',1,'2',200)
+            add('heldout_compare_','held',0,'3',200)
+            report=human_reports.catalog(root)['weight'];heldout=human_reports.catalog(root,cohort='heldout')['weight']
+            self.assertEqual(set(report['cases']),{1});self.assertEqual(set(heldout['cases']),{0})
+            self.assertEqual(heldout['cohort'],'heldout')
+
+    def test_legacy_rating_signature_remains_stable(self):
+        import human_reports
+        row={'model':{},'quantization':{},'messages':[],'generation':{},'test_sha256':'hash','case_index':0,'adapter_sha256':'adapter','tuned':{'text':'answer'}}
+        old={k:row.get(k) for k in ('model','quantization','messages','generation','test_sha256','case_index','adapter_sha256')};old['answer']='answer'
+        self.assertEqual(human_reports.case_signature(row),hashlib.sha256(json.dumps(old,sort_keys=True,ensure_ascii=False).encode()).hexdigest())
