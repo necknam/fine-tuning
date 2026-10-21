@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import json,hashlib,unittest,tempfile
 from pathlib import Path
 from prepare_data import import_curated_release

@@ -1,7 +1,20 @@
 * text=auto eol=lf
 *.ps1 text eol=crlf
-roadmap_app/data/regulations/** -text
+database/data/regulations/** -text
 *.pdf binary
 *.png binary
 *.xlsx binary
 *.zip binary
+
+*.dump binary
+*.dll binary
+*.jsonl -text
+
+# Preserve byte hashes stored in database migration and extension manifests.
+database/src/database/migrations/*.sql -text
+database/data/exports/pgvector_pg17_windows_x64/** -text
+
+# Imported source documents/dumps retain exact bytes and do not need line diffs.
+database/data/regulations/** binary
+database/data/exports/*.sql binary
+database/data/exports/pgvector_pg17_windows_x64/** binary

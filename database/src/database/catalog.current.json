@@ -1,0 +1,7247 @@
+{
+  "growpath_legacy.agent_generations": {
+    "columns": [
+      {
+        "column": "generation_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "request_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "agent_id",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "prompt_version_id",
+        "type": "uuid",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "provider",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "model",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "roadmap_content",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "summary",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "latency_ms",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "status",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": "'SUCCESS'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "generation_id"
+    ],
+    "fks": [
+      {
+        "name": "agent_generations_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "agent_generations_request_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.roadmap_requests",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": [
+          "request_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "agent_generations_agent_id_check",
+        "type": "c",
+        "definition": "CHECK (agent_id::text = ANY (ARRAY['agent_practical'::character varying::text, 'agent_certified'::character varying::text, 'agent_fasttrack'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "agent_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "agent_generations_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (generation_id)",
+        "target": "-",
+        "columns": [
+          "generation_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "agent_generations_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "agent_generations_request_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.roadmap_requests",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": [
+          "request_id"
+        ]
+      },
+      {
+        "name": "agent_generations_status_check",
+        "type": "c",
+        "definition": "CHECK (status::text = ANY (ARRAY['SUCCESS'::character varying::text, 'FAILED'::character varying::text, 'TIMEOUT'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "status"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_legacy.agent_selections": {
+    "columns": [
+      {
+        "column": "selection_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "request_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chosen_generation_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chosen_agent_id",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "selection_reason",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "user_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "selection_id"
+    ],
+    "fks": [
+      {
+        "name": "agent_selections_chosen_generation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (chosen_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.agent_generations",
+        "columns": [
+          "chosen_generation_id"
+        ],
+        "target_columns": [
+          "generation_id"
+        ]
+      },
+      {
+        "name": "agent_selections_request_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.roadmap_requests",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": [
+          "request_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "agent_selections_chosen_agent_id_check",
+        "type": "c",
+        "definition": "CHECK (chosen_agent_id::text = ANY (ARRAY['agent_practical'::character varying::text, 'agent_certified'::character varying::text, 'agent_fasttrack'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "chosen_agent_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "agent_selections_chosen_generation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (chosen_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.agent_generations",
+        "columns": [
+          "chosen_generation_id"
+        ],
+        "target_columns": [
+          "generation_id"
+        ]
+      },
+      {
+        "name": "agent_selections_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (selection_id)",
+        "target": "-",
+        "columns": [
+          "selection_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "agent_selections_request_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.roadmap_requests",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": [
+          "request_id"
+        ]
+      },
+      {
+        "name": "agent_selections_request_id_key",
+        "type": "u",
+        "definition": "UNIQUE (request_id)",
+        "target": "-",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "agent_selections_user_type_check",
+        "type": "c",
+        "definition": "CHECK (user_type::text = ANY (ARRAY['REAL_USER'::character varying::text, 'TEST_MANUAL'::character varying::text, 'TEST_AUTO'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "user_type"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_legacy.finetuning_datasets": {
+    "columns": [
+      {
+        "column": "dataset_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "dataset_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "record_count",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "export_path",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "pii_masked",
+        "type": "boolean",
+        "not_null": true,
+        "default": "true",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "filter_criteria",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'{}'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "dataset_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "finetuning_datasets_dataset_type_check",
+        "type": "c",
+        "definition": "CHECK (dataset_type::text = ANY (ARRAY['SFT_JSONL'::character varying::text, 'DPO_JSONL'::character varying::text, 'HF_DATASET'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "dataset_type"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "finetuning_datasets_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (dataset_id)",
+        "target": "-",
+        "columns": [
+          "dataset_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_legacy.preference_pairs": {
+    "columns": [
+      {
+        "column": "pair_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "request_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chosen_generation_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "rejected_generation_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "prompt_input",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chosen_output",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "rejected_output",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "user_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "pair_id"
+    ],
+    "fks": [
+      {
+        "name": "preference_pairs_chosen_generation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (chosen_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.agent_generations",
+        "columns": [
+          "chosen_generation_id"
+        ],
+        "target_columns": [
+          "generation_id"
+        ]
+      },
+      {
+        "name": "preference_pairs_rejected_generation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (rejected_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.agent_generations",
+        "columns": [
+          "rejected_generation_id"
+        ],
+        "target_columns": [
+          "generation_id"
+        ]
+      },
+      {
+        "name": "preference_pairs_request_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.roadmap_requests",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": [
+          "request_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "preference_pairs_chosen_generation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (chosen_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.agent_generations",
+        "columns": [
+          "chosen_generation_id"
+        ],
+        "target_columns": [
+          "generation_id"
+        ]
+      },
+      {
+        "name": "preference_pairs_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (pair_id)",
+        "target": "-",
+        "columns": [
+          "pair_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "preference_pairs_rejected_generation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (rejected_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.agent_generations",
+        "columns": [
+          "rejected_generation_id"
+        ],
+        "target_columns": [
+          "generation_id"
+        ]
+      },
+      {
+        "name": "preference_pairs_request_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE",
+        "target": "growpath_legacy.roadmap_requests",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": [
+          "request_id"
+        ]
+      },
+      {
+        "name": "preference_pairs_user_type_check",
+        "type": "c",
+        "definition": "CHECK (user_type::text = ANY (ARRAY['REAL_USER'::character varying::text, 'TEST_MANUAL'::character varying::text, 'TEST_AUTO'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "user_type"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_legacy.roadmap_requests": {
+    "columns": [
+      {
+        "column": "request_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "user_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "employee_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "raw_user_prompt",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "conversation_history",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "user_requirements",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'{}'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "retrieved_context",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'{}'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "request_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "roadmap_requests_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (request_id)",
+        "target": "-",
+        "columns": [
+          "request_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_requests_user_type_check",
+        "type": "c",
+        "definition": "CHECK (user_type::text = ANY (ARRAY['REAL_USER'::character varying::text, 'TEST_MANUAL'::character varying::text, 'TEST_AUTO'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "user_type"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_legacy.test_mock_profiles": {
+    "columns": [
+      {
+        "column": "profile_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "profile_name",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "department",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "grade",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "job_title",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "career_years",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "current_skills",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_skills",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "work_context_summary",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "profile_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "test_mock_profiles_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (profile_id)",
+        "target": "-",
+        "columns": [
+          "profile_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "test_mock_profiles_source_type_check",
+        "type": "c",
+        "definition": "CHECK (source_type::text = ANY (ARRAY['TEST_MANUAL'::character varying::text, 'TEST_AUTO'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "source_type"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_meta.catalog_api_sources": {
+    "columns": [
+      {
+        "column": "resource_type",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "external_key",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "entity_key",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "payload",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "mapping_evidence",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "fetched_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "resource_type",
+      "source",
+      "external_key"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "catalog_api_sources_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (resource_type, source, external_key)",
+        "target": "-",
+        "columns": [
+          "resource_type",
+          "source",
+          "external_key"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "growpath_meta.schema_migrations": {
+    "columns": [
+      {
+        "column": "version",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "sha256",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "applied_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "version"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "schema_migrations_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (version)",
+        "target": "-",
+        "columns": [
+          "version"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.assessment_questions": {
+    "columns": [
+      {
+        "column": "question_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "assessment_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "question",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "options",
+        "type": "jsonb",
+        "not_null": false,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "sequence_no",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "diagnostic_round_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "question_id"
+    ],
+    "fks": [
+      {
+        "name": "assessment_question_round_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (diagnostic_round_id, project_id) REFERENCES diagnostic_rounds(diagnostic_round_id, project_id) ON DELETE CASCADE",
+        "target": "public.diagnostic_rounds",
+        "columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ],
+        "target_columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ]
+      },
+      {
+        "name": "assessment_questions_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "assessment_questions_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "assessment_question_round_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (diagnostic_round_id, project_id) REFERENCES diagnostic_rounds(diagnostic_round_id, project_id) ON DELETE CASCADE",
+        "target": "public.diagnostic_rounds",
+        "columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ],
+        "target_columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ]
+      },
+      {
+        "name": "assessment_questions_assessment_type_check",
+        "type": "c",
+        "definition": "CHECK (assessment_type::text = ANY (ARRAY['PRE'::character varying::text, 'POST'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "assessment_type"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "assessment_questions_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (question_id)",
+        "target": "-",
+        "columns": [
+          "question_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "assessment_questions_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "assessment_questions_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      },
+      {
+        "name": "assessment_sequence_unique",
+        "type": "u",
+        "definition": "UNIQUE (diagnostic_round_id, assessment_type, sequence_no)",
+        "target": "-",
+        "columns": [
+          "diagnostic_round_id",
+          "assessment_type",
+          "sequence_no"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "uq_assessment_question_scope",
+        "type": "u",
+        "definition": "UNIQUE (question_id, project_id, assessment_type)",
+        "target": "-",
+        "columns": [
+          "question_id",
+          "project_id",
+          "assessment_type"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.assessment_responses": {
+    "columns": [
+      {
+        "column": "response_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "question_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "assessment_type",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "selected_option",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "score",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "answered_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "response_id"
+    ],
+    "fks": [
+      {
+        "name": "assessment_responses_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "fk_response_question_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (question_id, project_id, assessment_type) REFERENCES assessment_questions(question_id, project_id, assessment_type) ON DELETE CASCADE",
+        "target": "public.assessment_questions",
+        "columns": [
+          "question_id",
+          "project_id",
+          "assessment_type"
+        ],
+        "target_columns": [
+          "question_id",
+          "project_id",
+          "assessment_type"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "assessment_responses_assessment_type_check",
+        "type": "c",
+        "definition": "CHECK (assessment_type::text = ANY (ARRAY['PRE'::character varying::text, 'POST'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "assessment_type"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "assessment_responses_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (response_id)",
+        "target": "-",
+        "columns": [
+          "response_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "assessment_responses_score_check",
+        "type": "c",
+        "definition": "CHECK (score >= 1 AND score <= 5)",
+        "target": "-",
+        "columns": [
+          "score"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "assessment_responses_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "fk_response_question_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (question_id, project_id, assessment_type) REFERENCES assessment_questions(question_id, project_id, assessment_type) ON DELETE CASCADE",
+        "target": "public.assessment_questions",
+        "columns": [
+          "question_id",
+          "project_id",
+          "assessment_type"
+        ],
+        "target_columns": [
+          "question_id",
+          "project_id",
+          "assessment_type"
+        ]
+      },
+      {
+        "name": "uq_session_question_resp",
+        "type": "u",
+        "definition": "UNIQUE (project_id, question_id)",
+        "target": "-",
+        "columns": [
+          "project_id",
+          "question_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.book_skills": {
+    "columns": [
+      {
+        "column": "isbn",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "isbn",
+      "skill_id"
+    ],
+    "fks": [
+      {
+        "name": "book_skill_map_isbn_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE",
+        "target": "public.books",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": [
+          "isbn"
+        ]
+      },
+      {
+        "name": "book_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "book_skill_map_isbn_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE",
+        "target": "public.books",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": [
+          "isbn"
+        ]
+      },
+      {
+        "name": "book_skill_map_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (isbn, skill_id)",
+        "target": "-",
+        "columns": [
+          "isbn",
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "book_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "public.books": {
+    "columns": [
+      {
+        "column": "isbn",
+        "type": "character varying(20)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "character varying(200)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "author",
+        "type": "character varying(100)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "publisher",
+        "type": "character varying(100)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "loan_count",
+        "type": "integer",
+        "not_null": false,
+        "default": "0",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "kdc_code",
+        "type": "character varying(10)",
+        "not_null": false,
+        "default": "'004'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "last_batch_updated",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "record_source",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": "'EXTERNAL_INGESTION'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_status",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_verified_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "image_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "isbn"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "books_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (isbn)",
+        "target": "-",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.certification_skills": {
+    "columns": [
+      {
+        "column": "cert_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "cert_id",
+      "skill_id"
+    ],
+    "fks": [
+      {
+        "name": "cert_skill_map_cert_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (cert_id) REFERENCES certifications(cert_id) ON DELETE CASCADE",
+        "target": "public.certifications",
+        "columns": [
+          "cert_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "cert_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "cert_skill_map_cert_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (cert_id) REFERENCES certifications(cert_id) ON DELETE CASCADE",
+        "target": "public.certifications",
+        "columns": [
+          "cert_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "cert_skill_map_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (cert_id, skill_id)",
+        "target": "-",
+        "columns": [
+          "cert_id",
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "cert_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "public.certifications": {
+    "columns": [
+      {
+        "column": "cert_id",
+        "type": "integer",
+        "not_null": true,
+        "default": "nextval('certifications_cert_id_seq'::regclass)",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "provider",
+        "type": "character varying(50)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "test_subjects",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "career_outlook",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "exam_type",
+        "type": "character varying(20)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "pass_score",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "last_batch_updated",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "record_source",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": "'EXTERNAL_INGESTION'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_status",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_verified_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "image_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "cert_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "certifications_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (cert_id)",
+        "target": "-",
+        "columns": [
+          "cert_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "certifications_title_key",
+        "type": "u",
+        "definition": "UNIQUE (title)",
+        "target": "-",
+        "columns": [
+          "title"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.course_skills": {
+    "columns": [
+      {
+        "column": "course_id",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "course_id",
+      "skill_id"
+    ],
+    "fks": [
+      {
+        "name": "course_skill_map_course_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE",
+        "target": "public.courses",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": [
+          "course_id"
+        ]
+      },
+      {
+        "name": "course_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "course_skill_map_course_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE",
+        "target": "public.courses",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": [
+          "course_id"
+        ]
+      },
+      {
+        "name": "course_skill_map_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (course_id, skill_id)",
+        "target": "-",
+        "columns": [
+          "course_id",
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "course_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "public.courses": {
+    "columns": [
+      {
+        "column": "course_id",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "character varying(200)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "category_name",
+        "type": "character varying(50)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "org_name",
+        "type": "character varying(100)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "url",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "is_matchup",
+        "type": "boolean",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "cost",
+        "type": "numeric(10,2)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "duration_weeks",
+        "type": "integer",
+        "not_null": false,
+        "default": "4",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "recruitment_status",
+        "type": "character varying(30)",
+        "not_null": false,
+        "default": "'OPEN'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "syllabus_summary",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "last_batch_updated",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "platform",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": "'K-MOOC'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "difficulty",
+        "type": "character varying(20)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "record_source",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": "'EXTERNAL_INGESTION'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_status",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_verified_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "image_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "course_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "chk_courses_difficulty",
+        "type": "c",
+        "definition": "CHECK (difficulty::text = ANY (ARRAY['BEGINNER'::character varying::text, 'INTERMEDIATE'::character varying::text, 'ADVANCED'::character varying::text]))",
+        "target": "-",
+        "columns": [
+          "difficulty"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "courses_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (course_id)",
+        "target": "-",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.departments": {
+    "columns": [
+      {
+        "column": "department_id",
+        "type": "bigint",
+        "not_null": true,
+        "default": null,
+        "identity": "d",
+        "generated": ""
+      },
+      {
+        "column": "institution_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "department_code",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "name",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "parent_department_id",
+        "type": "bigint",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "department_id"
+    ],
+    "fks": [
+      {
+        "name": "departments_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "departments_parent_department_id_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_department_id, institution_id) REFERENCES departments(department_id, institution_id)",
+        "target": "public.departments",
+        "columns": [
+          "parent_department_id",
+          "institution_id"
+        ],
+        "target_columns": [
+          "department_id",
+          "institution_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "departments_check",
+        "type": "c",
+        "definition": "CHECK (parent_department_id IS DISTINCT FROM department_id)",
+        "target": "-",
+        "columns": [
+          "parent_department_id",
+          "department_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "departments_department_id_institution_id_key",
+        "type": "u",
+        "definition": "UNIQUE (department_id, institution_id)",
+        "target": "-",
+        "columns": [
+          "department_id",
+          "institution_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "departments_institution_id_department_code_key",
+        "type": "u",
+        "definition": "UNIQUE (institution_id, department_code)",
+        "target": "-",
+        "columns": [
+          "institution_id",
+          "department_code"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "departments_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "departments_parent_department_id_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_department_id, institution_id) REFERENCES departments(department_id, institution_id)",
+        "target": "public.departments",
+        "columns": [
+          "parent_department_id",
+          "institution_id"
+        ],
+        "target_columns": [
+          "department_id",
+          "institution_id"
+        ]
+      },
+      {
+        "name": "departments_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (department_id)",
+        "target": "-",
+        "columns": [
+          "department_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.diagnostic_rounds": {
+    "columns": [
+      {
+        "column": "diagnostic_round_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "round_number",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_snapshot",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "agent_input",
+        "type": "jsonb",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "diagnostic_result",
+        "type": "jsonb",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "pre_completed_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "post_completed_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "diagnostic_round_id"
+    ],
+    "fks": [
+      {
+        "name": "diagnostic_rounds_project_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "diagnostic_rounds_diagnostic_round_id_project_id_key",
+        "type": "u",
+        "definition": "UNIQUE (diagnostic_round_id, project_id)",
+        "target": "-",
+        "columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "diagnostic_rounds_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (diagnostic_round_id)",
+        "target": "-",
+        "columns": [
+          "diagnostic_round_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "diagnostic_rounds_project_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "diagnostic_rounds_project_id_round_number_key",
+        "type": "u",
+        "definition": "UNIQUE (project_id, round_number)",
+        "target": "-",
+        "columns": [
+          "project_id",
+          "round_number"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "diagnostic_rounds_round_number_check",
+        "type": "c",
+        "definition": "CHECK (round_number > 0)",
+        "target": "-",
+        "columns": [
+          "round_number"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.employee_certifications": {
+    "columns": [
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "certification_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "employee_id",
+      "certification_id"
+    ],
+    "fks": [
+      {
+        "name": "employee_certifications_certification_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)",
+        "target": "public.certifications",
+        "columns": [
+          "certification_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "employee_certifications_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "employee_certifications_certification_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)",
+        "target": "public.certifications",
+        "columns": [
+          "certification_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "employee_certifications_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "employee_certifications_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (employee_id, certification_id)",
+        "target": "-",
+        "columns": [
+          "employee_id",
+          "certification_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.employee_education_records": {
+    "columns": [
+      {
+        "column": "education_record_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "school_name",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "education_level",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "department_name",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "major_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "education_record_id"
+    ],
+    "fks": [
+      {
+        "name": "employee_education_records_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "employee_education_records_major_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id)",
+        "target": "public.majors",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": [
+          "major_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "employee_education_records_education_level_check",
+        "type": "c",
+        "definition": "CHECK (education_level = ANY (ARRAY['middle_school_or_lower'::text, 'high_school'::text, 'associate'::text, 'bachelor'::text, 'master'::text, 'doctorate'::text, 'other'::text]))",
+        "target": "-",
+        "columns": [
+          "education_level"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employee_education_records_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "employee_education_records_major_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id)",
+        "target": "public.majors",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": [
+          "major_id"
+        ]
+      },
+      {
+        "name": "employee_education_records_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (education_record_id)",
+        "target": "-",
+        "columns": [
+          "education_record_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employee_education_records_school_name_check",
+        "type": "c",
+        "definition": "CHECK (length(TRIM(BOTH FROM school_name)) > 0)",
+        "target": "-",
+        "columns": [
+          "school_name"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.employee_recommended_prompts": {
+    "columns": [
+      {
+        "column": "prompt_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "prompt_text",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "display_order",
+        "type": "smallint",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "prompt_id"
+    ],
+    "fks": [
+      {
+        "name": "employee_recommended_prompts_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "employee_recommended_prompts_display_order_check",
+        "type": "c",
+        "definition": "CHECK (display_order >= 1 AND display_order <= 3)",
+        "target": "-",
+        "columns": [
+          "display_order"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employee_recommended_prompts_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "employee_recommended_prompts_employee_order_key",
+        "type": "u",
+        "definition": "UNIQUE (employee_id, display_order)",
+        "target": "-",
+        "columns": [
+          "employee_id",
+          "display_order"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employee_recommended_prompts_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (prompt_id)",
+        "target": "-",
+        "columns": [
+          "prompt_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employee_recommended_prompts_prompt_text_check",
+        "type": "c",
+        "definition": "CHECK (prompt_text IS NULL OR length(btrim(prompt_text)) > 0)",
+        "target": "-",
+        "columns": [
+          "prompt_text"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.employee_skills": {
+    "columns": [
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "employee_id",
+      "skill_id"
+    ],
+    "fks": [
+      {
+        "name": "employee_skills_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "employee_skills_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "employee_skills_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "employee_skills_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (employee_id, skill_id)",
+        "target": "-",
+        "columns": [
+          "employee_id",
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employee_skills_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "public.employees": {
+    "columns": [
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "not_null": true,
+        "default": "nextval('users_user_id_seq'::regclass)",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "name",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "job_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "is_degree_seeker",
+        "type": "boolean",
+        "not_null": false,
+        "default": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "email",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "department",
+        "type": "character varying(100)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "job_title",
+        "type": "character varying(100)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "grade",
+        "type": "character varying(50)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_type",
+        "type": "character varying(20)",
+        "not_null": false,
+        "default": "'REAL_USER'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "institution_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "employee_number",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "password_hash",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "department_id",
+        "type": "bigint",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "job_grade_id",
+        "type": "bigint",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "is_department_head",
+        "type": "boolean",
+        "not_null": true,
+        "default": "false",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "employee_id"
+    ],
+    "fks": [
+      {
+        "name": "employees_department_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (department_id, institution_id) REFERENCES departments(department_id, institution_id)",
+        "target": "public.departments",
+        "columns": [
+          "department_id",
+          "institution_id"
+        ],
+        "target_columns": [
+          "department_id",
+          "institution_id"
+        ]
+      },
+      {
+        "name": "employees_grade_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_grade_id, institution_id) REFERENCES job_grades(job_grade_id, institution_id)",
+        "target": "public.job_grades",
+        "columns": [
+          "job_grade_id",
+          "institution_id"
+        ],
+        "target_columns": [
+          "job_grade_id",
+          "institution_id"
+        ]
+      },
+      {
+        "name": "employees_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "users_target_job_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE SET NULL",
+        "target": "public.jobs",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": [
+          "job_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "employees_department_requires_institution",
+        "type": "c",
+        "definition": "CHECK (department_id IS NULL OR institution_id IS NOT NULL)",
+        "target": "-",
+        "columns": [
+          "department_id",
+          "institution_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_department_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (department_id, institution_id) REFERENCES departments(department_id, institution_id)",
+        "target": "public.departments",
+        "columns": [
+          "department_id",
+          "institution_id"
+        ],
+        "target_columns": [
+          "department_id",
+          "institution_id"
+        ]
+      },
+      {
+        "name": "employees_grade_requires_institution",
+        "type": "c",
+        "definition": "CHECK (job_grade_id IS NULL OR institution_id IS NOT NULL)",
+        "target": "-",
+        "columns": [
+          "job_grade_id",
+          "institution_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_grade_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_grade_id, institution_id) REFERENCES job_grades(job_grade_id, institution_id)",
+        "target": "public.job_grades",
+        "columns": [
+          "job_grade_id",
+          "institution_id"
+        ],
+        "target_columns": [
+          "job_grade_id",
+          "institution_id"
+        ]
+      },
+      {
+        "name": "employees_head_department_required",
+        "type": "c",
+        "definition": "CHECK (NOT is_department_head OR department_id IS NOT NULL)",
+        "target": "-",
+        "columns": [
+          "is_department_head",
+          "department_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "employees_number_unique",
+        "type": "u",
+        "definition": "UNIQUE (institution_id, employee_number)",
+        "target": "-",
+        "columns": [
+          "institution_id",
+          "employee_number"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_password_is_hash",
+        "type": "c",
+        "definition": "CHECK (password_hash IS NULL OR password_hash ~~ '$argon2id$%%'::text)",
+        "target": "-",
+        "columns": [
+          "password_hash"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "users_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (employee_id)",
+        "target": "-",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "users_target_job_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE SET NULL",
+        "target": "public.jobs",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": [
+          "job_id"
+        ]
+      }
+    ]
+  },
+  "public.growth_reports": {
+    "columns": [
+      {
+        "column": "report_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "report_type",
+        "type": "character varying(30)",
+        "not_null": true,
+        "default": "'PRE_POST'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "report_content",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "roadmap_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "report_id"
+    ],
+    "fks": [
+      {
+        "name": "assessment_reports_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "growth_roadmap_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": [
+          "roadmap_id"
+        ]
+      },
+      {
+        "name": "growth_same_project_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id, project_id) REFERENCES roadmaps(roadmap_id, project_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id",
+          "project_id"
+        ],
+        "target_columns": [
+          "roadmap_id",
+          "project_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "assessment_reports_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (report_id)",
+        "target": "-",
+        "columns": [
+          "report_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "assessment_reports_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "growth_roadmap_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": [
+          "roadmap_id"
+        ]
+      },
+      {
+        "name": "growth_roadmap_unique",
+        "type": "u",
+        "definition": "UNIQUE (roadmap_id)",
+        "target": "-",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "growth_same_project_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id, project_id) REFERENCES roadmaps(roadmap_id, project_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id",
+          "project_id"
+        ],
+        "target_columns": [
+          "roadmap_id",
+          "project_id"
+        ]
+      },
+      {
+        "name": "uq_session_assessment_report",
+        "type": "u",
+        "definition": "UNIQUE (project_id)",
+        "target": "-",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.institutions": {
+    "columns": [
+      {
+        "column": "institution_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "name",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "external_code",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "institution_code",
+        "type": "text",
+        "not_null": false,
+        "default": "COALESCE(external_code, institution_id)",
+        "identity": "",
+        "generated": "s"
+      }
+    ],
+    "pk": [
+      "institution_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "institution_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (institution_id)",
+        "target": "-",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "institutions_code_unique",
+        "type": "u",
+        "definition": "UNIQUE (institution_code)",
+        "target": "-",
+        "columns": [
+          "institution_code"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.job_grades": {
+    "columns": [
+      {
+        "column": "job_grade_id",
+        "type": "bigint",
+        "not_null": true,
+        "default": null,
+        "identity": "d",
+        "generated": ""
+      },
+      {
+        "column": "institution_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "name",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "sort_order",
+        "type": "integer",
+        "not_null": true,
+        "default": "0",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "job_grade_id"
+    ],
+    "fks": [
+      {
+        "name": "job_grades_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "job_grades_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "job_grades_institution_id_name_key",
+        "type": "u",
+        "definition": "UNIQUE (institution_id, name)",
+        "target": "-",
+        "columns": [
+          "institution_id",
+          "name"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "job_grades_job_grade_id_institution_id_key",
+        "type": "u",
+        "definition": "UNIQUE (job_grade_id, institution_id)",
+        "target": "-",
+        "columns": [
+          "job_grade_id",
+          "institution_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "job_grades_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (job_grade_id)",
+        "target": "-",
+        "columns": [
+          "job_grade_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.job_skills": {
+    "columns": [
+      {
+        "column": "job_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "job_id",
+      "skill_id"
+    ],
+    "fks": [
+      {
+        "name": "job_skill_map_job_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE",
+        "target": "public.jobs",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": [
+          "job_id"
+        ]
+      },
+      {
+        "name": "job_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "job_skill_map_job_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE",
+        "target": "public.jobs",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": [
+          "job_id"
+        ]
+      },
+      {
+        "name": "job_skill_map_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (job_id, skill_id)",
+        "target": "-",
+        "columns": [
+          "job_id",
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "job_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "public.jobs": {
+    "columns": [
+      {
+        "column": "job_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "ncs_units",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "last_batch_updated",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "record_source",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": "'EXTERNAL_INGESTION'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_status",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_verified_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "job_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "jobs_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (job_id)",
+        "target": "-",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.learning_resource_embeddings": {
+    "columns": [
+      {
+        "column": "resource_type",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "resource_id",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "embedding_model",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "dimensions",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "input_version",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "input_sha256",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "embedding",
+        "type": "vector(1536)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "course_id",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "isbn",
+        "type": "character varying(20)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "certification_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "job_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "major_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "resource_type",
+      "resource_id",
+      "embedding_model"
+    ],
+    "fks": [
+      {
+        "name": "learning_resource_embeddings_certification_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id) ON DELETE CASCADE",
+        "target": "public.certifications",
+        "columns": [
+          "certification_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_course_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE",
+        "target": "public.courses",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": [
+          "course_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_isbn_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE",
+        "target": "public.books",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": [
+          "isbn"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_job_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE",
+        "target": "public.jobs",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": [
+          "job_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_major_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id) ON DELETE CASCADE",
+        "target": "public.majors",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": [
+          "major_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "learning_resource_embedding_dimensions_check",
+        "type": "c",
+        "definition": "CHECK (dimensions = 1536)",
+        "target": "-",
+        "columns": [
+          "dimensions"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "learning_resource_embedding_embedding_check",
+        "type": "c",
+        "definition": "CHECK (vector_norm(embedding) > 0::double precision)",
+        "target": "-",
+        "columns": [
+          "embedding"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "learning_resource_embedding_input_sha256_check",
+        "type": "c",
+        "definition": "CHECK (length(input_sha256) = 64)",
+        "target": "-",
+        "columns": [
+          "input_sha256"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "learning_resource_embedding_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (resource_type, resource_id, embedding_model)",
+        "target": "-",
+        "columns": [
+          "resource_type",
+          "resource_id",
+          "embedding_model"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "learning_resource_embeddings_certification_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id) ON DELETE CASCADE",
+        "target": "public.certifications",
+        "columns": [
+          "certification_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_course_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE",
+        "target": "public.courses",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": [
+          "course_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_isbn_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE",
+        "target": "public.books",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": [
+          "isbn"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_job_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE",
+        "target": "public.jobs",
+        "columns": [
+          "job_id"
+        ],
+        "target_columns": [
+          "job_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_major_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id) ON DELETE CASCADE",
+        "target": "public.majors",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": [
+          "major_id"
+        ]
+      },
+      {
+        "name": "learning_resource_embeddings_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      },
+      {
+        "name": "resource_kind_check",
+        "type": "c",
+        "definition": "CHECK (resource_type = ANY (ARRAY['skills'::text, 'courses'::text, 'books'::text, 'certifications'::text, 'jobs'::text, 'majors'::text]))",
+        "target": "-",
+        "columns": [
+          "resource_type"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "vector_one_source",
+        "type": "c",
+        "definition": "CHECK (num_nonnulls(skill_id, course_id, isbn, certification_id, job_id, major_id) = 1)",
+        "target": "-",
+        "columns": [
+          "skill_id",
+          "course_id",
+          "isbn",
+          "certification_id",
+          "job_id",
+          "major_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "vector_source_matches_key",
+        "type": "c",
+        "definition": "CHECK (resource_type = 'skills'::text AND skill_id::text = resource_id OR resource_type = 'courses'::text AND course_id::text = resource_id OR resource_type = 'books'::text AND isbn::text = resource_id OR resource_type = 'certifications'::text AND certification_id::text = resource_id OR resource_type = 'jobs'::text AND job_id::text = resource_id OR resource_type = 'majors'::text AND major_id::text = resource_id)",
+        "target": "-",
+        "columns": [
+          "resource_type",
+          "skill_id",
+          "resource_id",
+          "course_id",
+          "isbn",
+          "certification_id",
+          "job_id",
+          "major_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "vector_type_matches_source",
+        "type": "c",
+        "definition": "CHECK (\nCASE resource_type\n    WHEN 'skills'::text THEN skill_id IS NOT NULL\n    WHEN 'courses'::text THEN course_id IS NOT NULL\n    WHEN 'books'::text THEN isbn IS NOT NULL\n    WHEN 'certifications'::text THEN certification_id IS NOT NULL\n    WHEN 'jobs'::text THEN job_id IS NOT NULL\n    WHEN 'majors'::text THEN major_id IS NOT NULL\n    ELSE false\nEND)",
+        "target": "-",
+        "columns": [
+          "resource_type",
+          "skill_id",
+          "course_id",
+          "isbn",
+          "certification_id",
+          "job_id",
+          "major_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.major_skills": {
+    "columns": [
+      {
+        "column": "major_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "major_id",
+      "skill_id"
+    ],
+    "fks": [
+      {
+        "name": "major_skill_map_major_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id) ON DELETE CASCADE",
+        "target": "public.majors",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": [
+          "major_id"
+        ]
+      },
+      {
+        "name": "major_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "major_skill_map_major_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id) ON DELETE CASCADE",
+        "target": "public.majors",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": [
+          "major_id"
+        ]
+      },
+      {
+        "name": "major_skill_map_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (major_id, skill_id)",
+        "target": "-",
+        "columns": [
+          "major_id",
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "major_skill_map_skill_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "public.majors": {
+    "columns": [
+      {
+        "column": "major_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "character varying(100)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "curriculum",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "last_batch_updated",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_status",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_verified_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "description",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "major_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "majors_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (major_id)",
+        "target": "-",
+        "columns": [
+          "major_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.projects": {
+    "columns": [
+      {
+        "column": "project_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_name",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "status",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": "'DRAFT'::character varying",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "current_stage",
+        "type": "integer",
+        "not_null": true,
+        "default": "1",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "extracted_text",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "draft_plan",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "refined_plan",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_goal",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_scope",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "tech_stack",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "milestones",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "key_issues",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "deliverables",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "validation_criteria",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "draft_conversations",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "draft_choices",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'[]'::jsonb",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "draft_prompt_version_id",
+        "type": "uuid",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "plan_prompt_version_id",
+        "type": "uuid",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "project_id"
+    ],
+    "fks": [
+      {
+        "name": "projects_draft_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (draft_prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "draft_prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "projects_plan_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (plan_prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "plan_prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "roadmap_sessions_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "projects_draft_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (draft_prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "draft_prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "projects_plan_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (plan_prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "plan_prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "roadmap_sessions_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (project_id)",
+        "target": "-",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_sessions_user_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE",
+        "target": "public.employees",
+        "columns": [
+          "employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      }
+    ]
+  },
+  "public.prompt_versions": {
+    "columns": [
+      {
+        "column": "prompt_version_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "agent_id",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "version_num",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "system_prompt",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "is_active",
+        "type": "boolean",
+        "not_null": true,
+        "default": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "parent_version_id",
+        "type": "uuid",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "change_reason",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "timezone('utc'::text, now())",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "deactivated_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "prompt_version_id"
+    ],
+    "fks": [
+      {
+        "name": "prompt_versions_parent_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "parent_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "prompt_versions_agent_id_check",
+        "type": "c",
+        "definition": "CHECK (agent_id::text = ANY (ARRAY['agent_practical'::character varying, 'agent_certified'::character varying, 'agent_fasttrack'::character varying, 'agent_plan_draft'::character varying, 'agent_plan_refine'::character varying]::text[]))",
+        "target": "-",
+        "columns": [
+          "agent_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "prompt_versions_parent_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "parent_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "prompt_versions_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (prompt_version_id)",
+        "target": "-",
+        "columns": [
+          "prompt_version_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "uq_agent_version",
+        "type": "u",
+        "definition": "UNIQUE (agent_id, version_num)",
+        "target": "-",
+        "columns": [
+          "agent_id",
+          "version_num"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.roadmap_comments": {
+    "columns": [
+      {
+        "column": "comment_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "roadmap_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "author_employee_id",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "body",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "modification_completed_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "comment_id"
+    ],
+    "fks": [
+      {
+        "name": "roadmap_comments_author_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (author_employee_id) REFERENCES employees(employee_id)",
+        "target": "public.employees",
+        "columns": [
+          "author_employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "roadmap_comments_roadmap_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": [
+          "roadmap_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "roadmap_comments_author_employee_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (author_employee_id) REFERENCES employees(employee_id)",
+        "target": "public.employees",
+        "columns": [
+          "author_employee_id"
+        ],
+        "target_columns": [
+          "employee_id"
+        ]
+      },
+      {
+        "name": "roadmap_comments_body_check",
+        "type": "c",
+        "definition": "CHECK (length(TRIM(BOTH FROM body)) > 0)",
+        "target": "-",
+        "columns": [
+          "body"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_comments_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (comment_id)",
+        "target": "-",
+        "columns": [
+          "comment_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_comments_roadmap_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": [
+          "roadmap_id"
+        ]
+      }
+    ]
+  },
+  "public.roadmap_step_resources": {
+    "columns": [
+      {
+        "column": "step_resource_id",
+        "type": "bigint",
+        "not_null": true,
+        "default": null,
+        "identity": "d",
+        "generated": ""
+      },
+      {
+        "column": "step_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "course_id",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "isbn",
+        "type": "character varying(20)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "certification_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "step_resource_id"
+    ],
+    "fks": [
+      {
+        "name": "roadmap_step_resources_certification_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)",
+        "target": "public.certifications",
+        "columns": [
+          "certification_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_course_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id)",
+        "target": "public.courses",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": [
+          "course_id"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_isbn_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn)",
+        "target": "public.books",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": [
+          "isbn"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_step_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (step_id) REFERENCES roadmap_steps(step_id) ON DELETE CASCADE",
+        "target": "public.roadmap_steps",
+        "columns": [
+          "step_id"
+        ],
+        "target_columns": [
+          "step_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "roadmap_step_resources_certification_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)",
+        "target": "public.certifications",
+        "columns": [
+          "certification_id"
+        ],
+        "target_columns": [
+          "cert_id"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_check",
+        "type": "c",
+        "definition": "CHECK (num_nonnulls(course_id, isbn, certification_id) = 1)",
+        "target": "-",
+        "columns": [
+          "course_id",
+          "isbn",
+          "certification_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_step_resources_course_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id)",
+        "target": "public.courses",
+        "columns": [
+          "course_id"
+        ],
+        "target_columns": [
+          "course_id"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_isbn_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn)",
+        "target": "public.books",
+        "columns": [
+          "isbn"
+        ],
+        "target_columns": [
+          "isbn"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (step_resource_id)",
+        "target": "-",
+        "columns": [
+          "step_resource_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_step_resources_step_id_certification_id_key",
+        "type": "u",
+        "definition": "UNIQUE (step_id, certification_id)",
+        "target": "-",
+        "columns": [
+          "step_id",
+          "certification_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_step_resources_step_id_course_id_key",
+        "type": "u",
+        "definition": "UNIQUE (step_id, course_id)",
+        "target": "-",
+        "columns": [
+          "step_id",
+          "course_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_step_resources_step_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (step_id) REFERENCES roadmap_steps(step_id) ON DELETE CASCADE",
+        "target": "public.roadmap_steps",
+        "columns": [
+          "step_id"
+        ],
+        "target_columns": [
+          "step_id"
+        ]
+      },
+      {
+        "name": "roadmap_step_resources_step_id_isbn_key",
+        "type": "u",
+        "definition": "UNIQUE (step_id, isbn)",
+        "target": "-",
+        "columns": [
+          "step_id",
+          "isbn"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.roadmap_steps": {
+    "columns": [
+      {
+        "column": "step_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "roadmap_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "step_order",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "activity",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "estimated_duration",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_start_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_end_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "estimated_cost",
+        "type": "numeric(14,2)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "is_completed",
+        "type": "boolean",
+        "not_null": true,
+        "default": "false",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "completed_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "details",
+        "type": "jsonb",
+        "not_null": true,
+        "default": "'{}'::jsonb",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "step_id"
+    ],
+    "fks": [
+      {
+        "name": "roadmap_steps_roadmap_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": [
+          "roadmap_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "roadmap_steps_check",
+        "type": "c",
+        "definition": "CHECK (target_end_date IS NULL OR target_start_date IS NULL OR target_end_date >= target_start_date)",
+        "target": "-",
+        "columns": [
+          "target_end_date",
+          "target_start_date"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_steps_check1",
+        "type": "c",
+        "definition": "CHECK (is_completed = (completed_at IS NOT NULL))",
+        "target": "-",
+        "columns": [
+          "is_completed",
+          "completed_at"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_steps_estimated_cost_check",
+        "type": "c",
+        "definition": "CHECK (estimated_cost >= 0::numeric)",
+        "target": "-",
+        "columns": [
+          "estimated_cost"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_steps_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (step_id)",
+        "target": "-",
+        "columns": [
+          "step_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_steps_roadmap_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE",
+        "target": "public.roadmaps",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": [
+          "roadmap_id"
+        ]
+      },
+      {
+        "name": "roadmap_steps_roadmap_id_step_order_key",
+        "type": "u",
+        "definition": "UNIQUE (roadmap_id, step_order)",
+        "target": "-",
+        "columns": [
+          "roadmap_id",
+          "step_order"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_steps_step_order_check",
+        "type": "c",
+        "definition": "CHECK (step_order > 0)",
+        "target": "-",
+        "columns": [
+          "step_order"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.roadmaps": {
+    "columns": [
+      {
+        "column": "roadmap_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": "gen_random_uuid()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "project_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "strategy_type",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "strategy_title",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "summary",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "CURRENT_TIMESTAMP",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "selected_at",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "report_content",
+        "type": "jsonb",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "baseline_content",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "diagnostic_round_id",
+        "type": "uuid",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "prompt_version_id",
+        "type": "uuid",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "roadmap_id"
+    ],
+    "fks": [
+      {
+        "name": "roadmap_generations_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "roadmap_round_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (diagnostic_round_id, project_id) REFERENCES diagnostic_rounds(diagnostic_round_id, project_id) ON DELETE CASCADE",
+        "target": "public.diagnostic_rounds",
+        "columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ],
+        "target_columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ]
+      },
+      {
+        "name": "roadmaps_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "roadmap_diagnostic_unique",
+        "type": "u",
+        "definition": "UNIQUE (diagnostic_round_id)",
+        "target": "-",
+        "columns": [
+          "diagnostic_round_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_generations_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (roadmap_id)",
+        "target": "-",
+        "columns": [
+          "roadmap_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_generations_session_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE",
+        "target": "public.projects",
+        "columns": [
+          "project_id"
+        ],
+        "target_columns": [
+          "project_id"
+        ]
+      },
+      {
+        "name": "roadmap_project_identity",
+        "type": "u",
+        "definition": "UNIQUE (roadmap_id, project_id)",
+        "target": "-",
+        "columns": [
+          "roadmap_id",
+          "project_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "roadmap_round_scope",
+        "type": "f",
+        "definition": "FOREIGN KEY (diagnostic_round_id, project_id) REFERENCES diagnostic_rounds(diagnostic_round_id, project_id) ON DELETE CASCADE",
+        "target": "public.diagnostic_rounds",
+        "columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ],
+        "target_columns": [
+          "diagnostic_round_id",
+          "project_id"
+        ]
+      },
+      {
+        "name": "roadmaps_prompt_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (prompt_version_id) REFERENCES prompt_versions(prompt_version_id)",
+        "target": "public.prompt_versions",
+        "columns": [
+          "prompt_version_id"
+        ],
+        "target_columns": [
+          "prompt_version_id"
+        ]
+      },
+      {
+        "name": "uq_generation_scope",
+        "type": "u",
+        "definition": "UNIQUE (roadmap_id, project_id)",
+        "target": "-",
+        "columns": [
+          "roadmap_id",
+          "project_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "public.skill_tags": {
+    "columns": [
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": true,
+        "default": "nextval('skill_tags_skill_id_seq'::regclass)",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "name",
+        "type": "character varying(50)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "category",
+        "type": "character varying(50)",
+        "not_null": false,
+        "default": "'IT/Tech'::character varying",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "skill_id"
+    ],
+    "fks": [],
+    "constraints": [
+      {
+        "name": "skill_tags_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (skill_id)",
+        "target": "-",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "skill_tags_skill_name_key",
+        "type": "u",
+        "definition": "UNIQUE (name)",
+        "target": "-",
+        "columns": [
+          "name"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "regulations.evaluation_item_definitions": {
+    "columns": [
+      {
+        "column": "evaluation_item_definition_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "evaluation_result_schema_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "parent_item_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "skill_id",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "item_code",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "item_name",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "value_kind",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "aggregation_role",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "score_min",
+        "type": "numeric(12,3)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "score_max",
+        "type": "numeric(12,3)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "weight_percent",
+        "type": "numeric(6,3)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "unit",
+        "type": "character varying(40)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "scale_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "display_order",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "definition_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "evaluation_item_definition_id"
+    ],
+    "fks": [
+      {
+        "name": "evaluation_item_definition_parent_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_item_id, evaluation_result_schema_id) REFERENCES regulations.evaluation_item_definitions(evaluation_item_definition_id, evaluation_result_schema_id)",
+        "target": "regulations.evaluation_item_definitions",
+        "columns": [
+          "parent_item_id",
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ]
+      },
+      {
+        "name": "evaluation_item_definition_schema_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (evaluation_result_schema_id) REFERENCES regulations.evaluation_result_schemas(evaluation_result_schema_id)",
+        "target": "regulations.evaluation_result_schemas",
+        "columns": [
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_result_schema_id"
+        ]
+      },
+      {
+        "name": "evaluation_item_definition_skill_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "evaluation_item_definition_id_schema_uq",
+        "type": "u",
+        "definition": "UNIQUE (evaluation_item_definition_id, evaluation_result_schema_id)",
+        "target": "-",
+        "columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "evaluation_item_definition_parent_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_item_id, evaluation_result_schema_id) REFERENCES regulations.evaluation_item_definitions(evaluation_item_definition_id, evaluation_result_schema_id)",
+        "target": "regulations.evaluation_item_definitions",
+        "columns": [
+          "parent_item_id",
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ]
+      },
+      {
+        "name": "evaluation_item_definition_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (evaluation_item_definition_id)",
+        "target": "-",
+        "columns": [
+          "evaluation_item_definition_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "evaluation_item_definition_schema_code_uq",
+        "type": "u",
+        "definition": "UNIQUE (evaluation_result_schema_id, item_code)",
+        "target": "-",
+        "columns": [
+          "evaluation_result_schema_id",
+          "item_code"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "evaluation_item_definition_schema_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (evaluation_result_schema_id) REFERENCES regulations.evaluation_result_schemas(evaluation_result_schema_id)",
+        "target": "regulations.evaluation_result_schemas",
+        "columns": [
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_result_schema_id"
+        ]
+      },
+      {
+        "name": "evaluation_item_definition_skill_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)",
+        "target": "public.skill_tags",
+        "columns": [
+          "skill_id"
+        ],
+        "target_columns": [
+          "skill_id"
+        ]
+      }
+    ]
+  },
+  "regulations.evaluation_result_schemas": {
+    "columns": [
+      {
+        "column": "evaluation_result_schema_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "institution_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "schema_name",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "version_label",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "evaluation_kind",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "applicability_condition",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "applicability_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "effective_from",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "effective_to",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "rule_origin",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "calculation_rule",
+        "type": "jsonb",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "calculation_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "evaluation_result_schema_id"
+    ],
+    "fks": [
+      {
+        "name": "evaluation_result_schema_institution_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "evaluation_result_schema_institution_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "evaluation_result_schema_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (evaluation_result_schema_id)",
+        "target": "-",
+        "columns": [
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  },
+  "regulations.evaluation_schema_sources": {
+    "columns": [
+      {
+        "column": "evaluation_schema_source_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "evaluation_result_schema_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "evaluation_item_definition_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_node_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_role",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "evaluation_schema_source_id"
+    ],
+    "fks": [
+      {
+        "name": "evaluation_schema_source_id_schema_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (evaluation_item_definition_id, evaluation_result_schema_id) REFERENCES regulations.evaluation_item_definitions(evaluation_item_definition_id, evaluation_result_schema_id)",
+        "target": "regulations.evaluation_item_definitions",
+        "columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ]
+      },
+      {
+        "name": "evaluation_schema_source_node_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "evaluation_schema_source_schema_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (evaluation_result_schema_id) REFERENCES regulations.evaluation_result_schemas(evaluation_result_schema_id)",
+        "target": "regulations.evaluation_result_schemas",
+        "columns": [
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_result_schema_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "evaluation_schema_source_id_schema_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (evaluation_item_definition_id, evaluation_result_schema_id) REFERENCES regulations.evaluation_item_definitions(evaluation_item_definition_id, evaluation_result_schema_id)",
+        "target": "regulations.evaluation_item_definitions",
+        "columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_item_definition_id",
+          "evaluation_result_schema_id"
+        ]
+      },
+      {
+        "name": "evaluation_schema_source_node_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "evaluation_schema_source_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (evaluation_schema_source_id)",
+        "target": "-",
+        "columns": [
+          "evaluation_schema_source_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "evaluation_schema_source_schema_fk",
+        "type": "f",
+        "definition": "FOREIGN KEY (evaluation_result_schema_id) REFERENCES regulations.evaluation_result_schemas(evaluation_result_schema_id)",
+        "target": "regulations.evaluation_result_schemas",
+        "columns": [
+          "evaluation_result_schema_id"
+        ],
+        "target_columns": [
+          "evaluation_result_schema_id"
+        ]
+      }
+    ]
+  },
+  "regulations.rag_chunk_embeddings": {
+    "columns": [
+      {
+        "column": "rag_chunk_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "embedding_model",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "dimensions",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "input_version",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "input_sha256",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "embedding",
+        "type": "vector(1536)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": "now()",
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "rag_chunk_id",
+      "embedding_model"
+    ],
+    "fks": [
+      {
+        "name": "rag_chunk_embedding_rag_chunk_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (rag_chunk_id) REFERENCES regulations.rag_chunks(rag_chunk_id) ON DELETE CASCADE",
+        "target": "regulations.rag_chunks",
+        "columns": [
+          "rag_chunk_id"
+        ],
+        "target_columns": [
+          "rag_chunk_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "rag_chunk_embedding_dimensions_check",
+        "type": "c",
+        "definition": "CHECK (dimensions = 1536)",
+        "target": "-",
+        "columns": [
+          "dimensions"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_embedding_embedding_check",
+        "type": "c",
+        "definition": "CHECK (vector_norm(embedding) > 0::double precision)",
+        "target": "-",
+        "columns": [
+          "embedding"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_embedding_input_sha256_check",
+        "type": "c",
+        "definition": "CHECK (length(input_sha256) = 64)",
+        "target": "-",
+        "columns": [
+          "input_sha256"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_embedding_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (rag_chunk_id, embedding_model)",
+        "target": "-",
+        "columns": [
+          "rag_chunk_id",
+          "embedding_model"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_embedding_rag_chunk_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (rag_chunk_id) REFERENCES regulations.rag_chunks(rag_chunk_id) ON DELETE CASCADE",
+        "target": "regulations.rag_chunks",
+        "columns": [
+          "rag_chunk_id"
+        ],
+        "target_columns": [
+          "rag_chunk_id"
+        ]
+      }
+    ]
+  },
+  "regulations.rag_chunk_sources": {
+    "columns": [
+      {
+        "column": "rag_chunk_source_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "rag_chunk_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_node_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_order",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_role",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_span",
+        "type": "jsonb",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "rag_chunk_source_id"
+    ],
+    "fks": [
+      {
+        "name": "rag_chunk_source_rag_chunk_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (rag_chunk_id) REFERENCES regulations.rag_chunks(rag_chunk_id)",
+        "target": "regulations.rag_chunks",
+        "columns": [
+          "rag_chunk_id"
+        ],
+        "target_columns": [
+          "rag_chunk_id"
+        ]
+      },
+      {
+        "name": "rag_chunk_source_regulation_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "rag_chunk_source_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (rag_chunk_source_id)",
+        "target": "-",
+        "columns": [
+          "rag_chunk_source_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_source_rag_chunk_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (rag_chunk_id) REFERENCES regulations.rag_chunks(rag_chunk_id)",
+        "target": "regulations.rag_chunks",
+        "columns": [
+          "rag_chunk_id"
+        ],
+        "target_columns": [
+          "rag_chunk_id"
+        ]
+      },
+      {
+        "name": "rag_chunk_source_rag_chunk_id_source_order_key",
+        "type": "u",
+        "definition": "UNIQUE (rag_chunk_id, source_order)",
+        "target": "-",
+        "columns": [
+          "rag_chunk_id",
+          "source_order"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_source_regulation_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      }
+    ]
+  },
+  "regulations.rag_chunks": {
+    "columns": [
+      {
+        "column": "rag_chunk_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_version_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chunk_text",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chunk_type",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "context_path",
+        "type": "character varying(1024)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_hash",
+        "type": "character varying(128)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "chunking_version",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "index_revision",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "embedding_model",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "search_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "created_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "token_count",
+        "type": "integer",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "rag_chunk_id"
+    ],
+    "fks": [
+      {
+        "name": "rag_chunk_regulation_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "rag_chunk_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (rag_chunk_id)",
+        "target": "-",
+        "columns": [
+          "rag_chunk_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "rag_chunk_regulation_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      }
+    ]
+  },
+  "regulations.regulation_files": {
+    "columns": [
+      {
+        "column": "regulation_file_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_version_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_file_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "file_name",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "file_format",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "file_role",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "storage_key",
+        "type": "character varying(2048)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_type",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_url",
+        "type": "character varying(2048)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "retrieved_at",
+        "type": "timestamp with time zone",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "file_hash",
+        "type": "character varying(128)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "is_extraction_source",
+        "type": "boolean",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "parse_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "access_level",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "regulation_file_id"
+    ],
+    "fks": [
+      {
+        "name": "regulation_file_regulation_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      },
+      {
+        "name": "regulation_file_source_file_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (source_file_id) REFERENCES regulations.regulation_files(regulation_file_id)",
+        "target": "regulations.regulation_files",
+        "columns": [
+          "source_file_id"
+        ],
+        "target_columns": [
+          "regulation_file_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "regulation_file_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (regulation_file_id)",
+        "target": "-",
+        "columns": [
+          "regulation_file_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "regulation_file_regulation_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      },
+      {
+        "name": "regulation_file_source_file_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (source_file_id) REFERENCES regulations.regulation_files(regulation_file_id)",
+        "target": "regulations.regulation_files",
+        "columns": [
+          "source_file_id"
+        ],
+        "target_columns": [
+          "regulation_file_id"
+        ]
+      }
+    ]
+  },
+  "regulations.regulation_nodes": {
+    "columns": [
+      {
+        "column": "regulation_node_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_version_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_file_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "parent_node_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "node_type",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "label",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title",
+        "type": "character varying(255)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "path",
+        "type": "character varying(1024)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "display_order",
+        "type": "integer",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "body_text",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "source_locator",
+        "type": "jsonb",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "effective_from_override",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "effective_to_override",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "extraction_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "regulation_node_id"
+    ],
+    "fks": [
+      {
+        "name": "regulation_node_parent_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "parent_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_node_regulation_file_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_file_id) REFERENCES regulations.regulation_files(regulation_file_id)",
+        "target": "regulations.regulation_files",
+        "columns": [
+          "regulation_file_id"
+        ],
+        "target_columns": [
+          "regulation_file_id"
+        ]
+      },
+      {
+        "name": "regulation_node_regulation_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "regulation_node_parent_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (parent_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "parent_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_node_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (regulation_node_id)",
+        "target": "-",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "regulation_node_regulation_file_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_file_id) REFERENCES regulations.regulation_files(regulation_file_id)",
+        "target": "regulations.regulation_files",
+        "columns": [
+          "regulation_file_id"
+        ],
+        "target_columns": [
+          "regulation_file_id"
+        ]
+      },
+      {
+        "name": "regulation_node_regulation_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      }
+    ]
+  },
+  "regulations.regulation_references": {
+    "columns": [
+      {
+        "column": "regulation_reference_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_node_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "reference_type",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_text",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_regulation_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_version_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "target_node_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "resolution_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "regulation_reference_id"
+    ],
+    "fks": [
+      {
+        "name": "regulation_reference_regulation_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_reference_target_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (target_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "target_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_reference_target_regulation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (target_regulation_id) REFERENCES regulations.regulations(regulation_id)",
+        "target": "regulations.regulations",
+        "columns": [
+          "target_regulation_id"
+        ],
+        "target_columns": [
+          "regulation_id"
+        ]
+      },
+      {
+        "name": "regulation_reference_target_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (target_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "target_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "regulation_reference_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (regulation_reference_id)",
+        "target": "-",
+        "columns": [
+          "regulation_reference_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "regulation_reference_regulation_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_reference_target_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (target_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "target_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_reference_target_regulation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (target_regulation_id) REFERENCES regulations.regulations(regulation_id)",
+        "target": "regulations.regulations",
+        "columns": [
+          "target_regulation_id"
+        ],
+        "target_columns": [
+          "regulation_id"
+        ]
+      },
+      {
+        "name": "regulation_reference_target_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (target_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "target_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      }
+    ]
+  },
+  "regulations.regulation_scopes": {
+    "columns": [
+      {
+        "column": "regulation_scope_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_node_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "scope_type",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "condition_text",
+        "type": "text",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "condition_json",
+        "type": "jsonb",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "applies_to_node_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "regulation_scope_id"
+    ],
+    "fks": [
+      {
+        "name": "regulation_scope_applies_to_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (applies_to_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "applies_to_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_scope_regulation_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "regulation_scope_applies_to_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (applies_to_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "applies_to_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      },
+      {
+        "name": "regulation_scope_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (regulation_scope_id)",
+        "target": "-",
+        "columns": [
+          "regulation_scope_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "regulation_scope_regulation_node_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)",
+        "target": "regulations.regulation_nodes",
+        "columns": [
+          "regulation_node_id"
+        ],
+        "target_columns": [
+          "regulation_node_id"
+        ]
+      }
+    ]
+  },
+  "regulations.regulation_versions": {
+    "columns": [
+      {
+        "column": "regulation_version_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "regulation_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "version_label",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "title_at_version",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "content_kind",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "coverage_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "amendment_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "effective_from",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "effective_to",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "date_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "availability_status",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "previous_version_id",
+        "type": "character varying(64)",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "review_note",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "regulation_version_id"
+    ],
+    "fks": [
+      {
+        "name": "regulation_version_previous_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (previous_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "previous_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      },
+      {
+        "name": "regulation_version_regulation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_id) REFERENCES regulations.regulations(regulation_id)",
+        "target": "regulations.regulations",
+        "columns": [
+          "regulation_id"
+        ],
+        "target_columns": [
+          "regulation_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "regulation_version_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (regulation_version_id)",
+        "target": "-",
+        "columns": [
+          "regulation_version_id"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "regulation_version_previous_version_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (previous_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)",
+        "target": "regulations.regulation_versions",
+        "columns": [
+          "previous_version_id"
+        ],
+        "target_columns": [
+          "regulation_version_id"
+        ]
+      },
+      {
+        "name": "regulation_version_regulation_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (regulation_id) REFERENCES regulations.regulations(regulation_id)",
+        "target": "regulations.regulations",
+        "columns": [
+          "regulation_id"
+        ],
+        "target_columns": [
+          "regulation_id"
+        ]
+      }
+    ]
+  },
+  "regulations.regulations": {
+    "columns": [
+      {
+        "column": "regulation_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "institution_id",
+        "type": "character varying(64)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "name",
+        "type": "character varying(255)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "category",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "document_kind",
+        "type": "character varying(40)",
+        "not_null": true,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      }
+    ],
+    "pk": [
+      "regulation_id"
+    ],
+    "fks": [
+      {
+        "name": "regulation_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      }
+    ],
+    "constraints": [
+      {
+        "name": "regulation_institution_id_fkey",
+        "type": "f",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)",
+        "target": "public.institutions",
+        "columns": [
+          "institution_id"
+        ],
+        "target_columns": [
+          "institution_id"
+        ]
+      },
+      {
+        "name": "regulation_pkey",
+        "type": "p",
+        "definition": "PRIMARY KEY (regulation_id)",
+        "target": "-",
+        "columns": [
+          "regulation_id"
+        ],
+        "target_columns": []
+      }
+    ]
+  }
+}

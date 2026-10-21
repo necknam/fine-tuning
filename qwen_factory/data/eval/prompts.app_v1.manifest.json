@@ -1,0 +1,153 @@
+{
+  "catalog_source": "Existing RAG snapshot revalidated against current local DB",
+  "count": 10,
+  "legacy_mock_catalog_removed": true,
+  "legacy_sha256": "89f416a229380126db9b0e7160a58939d221e2a8540e07a37ad2ebf404caaf8f",
+  "paid_api_called": false,
+  "provenance": [
+    {
+      "case_id": "app10-01",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 1,
+      "legacy_record_sha256": "cf4fd1bd0fa29ada5c9dbb9684109e7db1c21df2cc8fbc6262867430bed53af9",
+      "scenario_constraints_preserved": {
+        "budget_krw": 20000,
+        "duration_weeks": 2,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-02",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 2,
+      "legacy_record_sha256": "987ae1f1571374cc205d2f837303117ba7c6be635661891c9c82d24eae2a707d",
+      "scenario_constraints_preserved": {
+        "budget_krw": 20000,
+        "duration_weeks": 2,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-03",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 3,
+      "legacy_record_sha256": "d5335166b76cf75bc437260233393c6ee85d440cbb14b28d8157405a4788d413",
+      "scenario_constraints_preserved": {
+        "budget_krw": 20000,
+        "duration_weeks": 2,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-04",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 4,
+      "legacy_record_sha256": "f693e6f96ca33da178916dcce0f5487cde81cf322e9289f612c72e71ddeb155c",
+      "scenario_constraints_preserved": {
+        "budget_krw": 0,
+        "duration_weeks": 2,
+        "start_stage": 2,
+        "weekly_hours": 2
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-05",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 5,
+      "legacy_record_sha256": "de6f7047faae255f95dd114b20cc1a77b3f3887560795e5d9561d4ad6b915802",
+      "scenario_constraints_preserved": {
+        "budget_krw": 0,
+        "duration_weeks": 1,
+        "start_stage": 3,
+        "weekly_hours": 4
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-06",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 6,
+      "legacy_record_sha256": "c62f0531a844a33579497defe70907187866e01dfeef7b6a072f6fd7198f82e7",
+      "scenario_constraints_preserved": {
+        "budget_krw": 10000,
+        "duration_weeks": 2,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-07",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 7,
+      "legacy_record_sha256": "6b7999bae422f85656af308a2b7e4af02fed981275a41fbe5b1a6de140113fb6",
+      "scenario_constraints_preserved": {
+        "budget_krw": 0,
+        "duration_weeks": 0,
+        "start_stage": 2,
+        "weekly_hours": 2
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-08",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 8,
+      "legacy_record_sha256": "21240e64a4331922749e4adb02ddc9f786dff0d7b904e7a4b9a2248f9b3c44e8",
+      "scenario_constraints_preserved": {
+        "budget_krw": 0,
+        "duration_weeks": 2,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "generate_roadmap"
+    },
+    {
+      "case_id": "app10-09",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 9,
+      "legacy_record_sha256": "cdc1bace7279d0a2e4dce3a9c951968c23ba54f9ac40823000c04c45a43d25c8",
+      "scenario_constraints_preserved": {
+        "budget_krw": 50000,
+        "duration_weeks": 4,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "revise_roadmap"
+    },
+    {
+      "case_id": "app10-10",
+      "catalog_policy": "Real supplied DB rows only; legacy mock catalog removed",
+      "comparison_note": "New input/schema cohort: rerun base and tuned models; do not compare scores directly with legacy reports.",
+      "legacy_line": 10,
+      "legacy_record_sha256": "2d6ce29749d00e58dc231c637ff9a2c25fa2540cc7f6a4f50f3188befbb22360",
+      "scenario_constraints_preserved": {
+        "budget_krw": 50000,
+        "duration_weeks": 4,
+        "start_stage": 2,
+        "weekly_hours": 3
+      },
+      "task": "revise_roadmap"
+    }
+  ],
+  "sha256": "605e14f7caf762c28b9c86d0b389b80cbaf3e1520906732b1911229ad3602b25",
+  "source_fingerprint": "90ebbbbb71bc71044113cb4d7bff67cc103f7b0eb913088d519b53704316f92a",
+  "training_approved": false,
+  "version": "growpath-app-eval10/v1"
+}

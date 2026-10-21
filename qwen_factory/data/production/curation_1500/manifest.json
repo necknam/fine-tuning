@@ -1,0 +1,61 @@
+{
+  "evaluation_subsampling": false,
+  "existing_selected": 1237,
+  "external_generation_http_attempts": 352,
+  "files_sha256": {
+    "provenance.jsonl": "538a282978b12471959219f116405e7c0ba961ac5b3f206f6c53e76e95d34f6f",
+    "sample_review.json": "77a17c89d94031651a4c49686bc53185e7cb2a1fc14dd046337120627ba49313",
+    "sft_all.jsonl": "68dc34da29330c4792c985596253a60fcfacd15748d0cb3660be009900962992",
+    "sft_test.jsonl": "f1c47f12f5d2fb565d11731dcd48366716399a0fb6ab7f2d9ef21ade3026ddbc",
+    "sft_train.jsonl": "6c85a7e5681fb62c892d999a3653a1050445e7fcaae70c53c5262aabb0a8f034",
+    "sft_validation.jsonl": "1850c2cfc1a723b2e948f7e51b9da014f4696c223255f3bcbc3071e15bcd7b08"
+  },
+  "final_supplement_requests_sha256": "e15b953ec02f44cb2f99a4b69378f10904535240a38cd07379f198258791f716",
+  "human_review_completed": false,
+  "limitations": [
+    "Not all 1500 answers have semantic review; local heuristics and purposive samples do not establish overall accuracy.",
+    "Locally authored/refined answers are separately identified; they are not all raw OpenAI outputs.",
+    "Only twelve project families exist; held-out splits do not establish broad novel-domain generalization.",
+    "Learning quality, token length fitness, and model improvement remain unmeasured."
+  ],
+  "loss_policy": "final_assistant_only",
+  "model": {
+    "base_model_id": "Qwen/Qwen3.8-27B",
+    "enable_thinking": false,
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "new_model_training_started": false,
+  "ontology_sha256": "211d3bc4bcb53f3b6b4e7ac16810bd0d6e4e73a0fd99ef194a1b1ca1cd1174b4",
+  "per_record_semantic_review_completed": false,
+  "quality_policy": "full local checks + ten existing and ten supplemented purposive content reviews; no full LLM judge",
+  "query_embedding_test_calls": 2,
+  "raw_openai_accepted_outputs": 202,
+  "report_benchmark_count": 10,
+  "report_benchmark_sha256": "605e14f7caf762c28b9c86d0b389b80cbaf3e1520906732b1911229ad3602b25",
+  "selected": 1500,
+  "source_fingerprint": "90ebbbbb71bc71044113cb4d7bff67cc103f7b0eb913088d519b53704316f92a",
+  "split_counts": {
+    "test": 150,
+    "train": 1200,
+    "validation": 150
+  },
+  "status": "CURATED_TEXT_RELEASE_NOT_YET_TOKENIZED_OR_TRAINED",
+  "supplement_authorship": {
+    "local_agent_authoring": 76,
+    "local_agent_edit": 7,
+    "openai": 180
+  },
+  "supplemented": 263,
+  "task_counts": {
+    "evidence_boundary": 60,
+    "generate_roadmap": 1003,
+    "generate_survey": 60,
+    "interpret_assessment": 60,
+    "progress_checkin": 60,
+    "resolve_constraints": 60,
+    "revise_roadmap": 197
+  },
+  "tokenized": false,
+  "training_approved": false,
+  "version": "growpath-sft-1500/v1"
+}

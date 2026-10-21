@@ -1,3 +1,4 @@
+# Audited 2026-10-21; preserve pinned versions while experiments run.
 # Local Windows dashboard and control client (Python 3.12).
 streamlit==1.66.0
 websocket-client==1.9.2

@@ -1,0 +1,50 @@
+{
+  "version": "app_v2",
+  "parent_file": "prompts.app_v1.jsonl",
+  "parent_sha256": "605e14f7caf762c28b9c86d0b389b80cbaf3e1520906732b1911229ad3602b25",
+  "sha256": "d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac",
+  "count": 10,
+  "change": "Replace contradictory fixed-period and technology-example system instructions; user requests and evidence unchanged. Rerun both base and tuned outputs.",
+  "cases": [
+    {
+      "case_index": 0,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 1,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 2,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 3,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 4,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 5,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 6,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 7,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 8,
+      "user_messages_unchanged": true
+    },
+    {
+      "case_index": 9,
+      "user_messages_unchanged": true
+    }
+  ]
+}

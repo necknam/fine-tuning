@@ -1,0 +1,1334 @@
+{
+  "format": 1,
+  "created_at": "2026-10-21T06:10:40.492337+00:00",
+  "database": "growpath",
+  "server_version": "17.11",
+  "archive": "growpath_full_20261021.dump",
+  "sha256": "cbdb5933f8a6e66874d805cdcae5fe9a466ecd7d872592732a37e526f6cad954",
+  "bytes": 45390365,
+  "inventory": {
+    "tables": {
+      "growpath_legacy.agent_generations": 71,
+      "growpath_legacy.agent_selections": 20,
+      "growpath_legacy.finetuning_datasets": 2,
+      "growpath_legacy.preference_pairs": 4,
+      "growpath_legacy.roadmap_requests": 25,
+      "growpath_legacy.test_mock_profiles": 39,
+      "growpath_meta.catalog_api_sources": 4639,
+      "growpath_meta.schema_migrations": 12,
+      "public.assessment_questions": 25,
+      "public.assessment_responses": 25,
+      "public.book_skills": 4205,
+      "public.books": 3327,
+      "public.certification_skills": 110,
+      "public.certifications": 68,
+      "public.course_skills": 1485,
+      "public.courses": 1149,
+      "public.departments": 5,
+      "public.diagnostic_rounds": 2,
+      "public.employee_certifications": 0,
+      "public.employee_education_records": 0,
+      "public.employee_recommended_prompts": 0,
+      "public.employee_skills": 0,
+      "public.employees": 14,
+      "public.growth_reports": 1,
+      "public.institutions": 1,
+      "public.job_grades": 5,
+      "public.job_skills": 31,
+      "public.jobs": 80,
+      "public.learning_resource_embeddings": 4792,
+      "public.major_skills": 202,
+      "public.majors": 132,
+      "public.projects": 2,
+      "public.prompt_versions": 6,
+      "public.roadmap_comments": 0,
+      "public.roadmap_step_resources": 9,
+      "public.roadmap_steps": 3,
+      "public.roadmaps": 1,
+      "public.skill_tags": 36,
+      "regulations.evaluation_item_definitions": 70,
+      "regulations.evaluation_result_schemas": 11,
+      "regulations.evaluation_schema_sources": 172,
+      "regulations.rag_chunk_embeddings": 1410,
+      "regulations.rag_chunk_sources": 1774,
+      "regulations.rag_chunks": 1552,
+      "regulations.regulation_files": 28,
+      "regulations.regulation_nodes": 3451,
+      "regulations.regulation_references": 462,
+      "regulations.regulation_scopes": 389,
+      "regulations.regulation_versions": 28,
+      "regulations.regulations": 28
+    },
+    "constraints": [
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_generations",
+        "conname": "agent_generations_agent_id_check",
+        "definition": "CHECK (((agent_id)::text = ANY (ARRAY[('agent_practical'::character varying)::text, ('agent_certified'::character varying)::text, ('agent_fasttrack'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_generations",
+        "conname": "agent_generations_pkey",
+        "definition": "PRIMARY KEY (generation_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_generations",
+        "conname": "agent_generations_prompt_version_id_fkey",
+        "definition": "FOREIGN KEY (prompt_version_id) REFERENCES prompt_versions(prompt_version_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_generations",
+        "conname": "agent_generations_request_id_fkey",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_generations",
+        "conname": "agent_generations_status_check",
+        "definition": "CHECK (((status)::text = ANY (ARRAY[('SUCCESS'::character varying)::text, ('FAILED'::character varying)::text, ('TIMEOUT'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_selections",
+        "conname": "agent_selections_chosen_agent_id_check",
+        "definition": "CHECK (((chosen_agent_id)::text = ANY (ARRAY[('agent_practical'::character varying)::text, ('agent_certified'::character varying)::text, ('agent_fasttrack'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_selections",
+        "conname": "agent_selections_chosen_generation_id_fkey",
+        "definition": "FOREIGN KEY (chosen_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_selections",
+        "conname": "agent_selections_pkey",
+        "definition": "PRIMARY KEY (selection_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_selections",
+        "conname": "agent_selections_request_id_fkey",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_selections",
+        "conname": "agent_selections_request_id_key",
+        "definition": "UNIQUE (request_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "agent_selections",
+        "conname": "agent_selections_user_type_check",
+        "definition": "CHECK (((user_type)::text = ANY (ARRAY[('REAL_USER'::character varying)::text, ('TEST_MANUAL'::character varying)::text, ('TEST_AUTO'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "finetuning_datasets",
+        "conname": "finetuning_datasets_dataset_type_check",
+        "definition": "CHECK (((dataset_type)::text = ANY (ARRAY[('SFT_JSONL'::character varying)::text, ('DPO_JSONL'::character varying)::text, ('HF_DATASET'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "finetuning_datasets",
+        "conname": "finetuning_datasets_pkey",
+        "definition": "PRIMARY KEY (dataset_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "preference_pairs",
+        "conname": "preference_pairs_chosen_generation_id_fkey",
+        "definition": "FOREIGN KEY (chosen_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "preference_pairs",
+        "conname": "preference_pairs_pkey",
+        "definition": "PRIMARY KEY (pair_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "preference_pairs",
+        "conname": "preference_pairs_rejected_generation_id_fkey",
+        "definition": "FOREIGN KEY (rejected_generation_id) REFERENCES growpath_legacy.agent_generations(generation_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "preference_pairs",
+        "conname": "preference_pairs_request_id_fkey",
+        "definition": "FOREIGN KEY (request_id) REFERENCES growpath_legacy.roadmap_requests(request_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "preference_pairs",
+        "conname": "preference_pairs_user_type_check",
+        "definition": "CHECK (((user_type)::text = ANY (ARRAY[('REAL_USER'::character varying)::text, ('TEST_MANUAL'::character varying)::text, ('TEST_AUTO'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "roadmap_requests",
+        "conname": "roadmap_requests_pkey",
+        "definition": "PRIMARY KEY (request_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "roadmap_requests",
+        "conname": "roadmap_requests_user_type_check",
+        "definition": "CHECK (((user_type)::text = ANY (ARRAY[('REAL_USER'::character varying)::text, ('TEST_MANUAL'::character varying)::text, ('TEST_AUTO'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "test_mock_profiles",
+        "conname": "test_mock_profiles_pkey",
+        "definition": "PRIMARY KEY (profile_id)"
+      },
+      {
+        "schema": "growpath_legacy",
+        "table_name": "test_mock_profiles",
+        "conname": "test_mock_profiles_source_type_check",
+        "definition": "CHECK (((source_type)::text = ANY (ARRAY[('TEST_MANUAL'::character varying)::text, ('TEST_AUTO'::character varying)::text])))"
+      },
+      {
+        "schema": "growpath_meta",
+        "table_name": "catalog_api_sources",
+        "conname": "catalog_api_sources_pkey",
+        "definition": "PRIMARY KEY (resource_type, source, external_key)"
+      },
+      {
+        "schema": "growpath_meta",
+        "table_name": "schema_migrations",
+        "conname": "schema_migrations_pkey",
+        "definition": "PRIMARY KEY (version)"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "assessment_question_round_scope",
+        "definition": "FOREIGN KEY (diagnostic_round_id, project_id) REFERENCES diagnostic_rounds(diagnostic_round_id, project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "assessment_questions_assessment_type_check",
+        "definition": "CHECK (((assessment_type)::text = ANY (ARRAY[('PRE'::character varying)::text, ('POST'::character varying)::text])))"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "assessment_questions_pkey",
+        "definition": "PRIMARY KEY (question_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "assessment_questions_session_id_fkey",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "assessment_questions_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "assessment_sequence_unique",
+        "definition": "UNIQUE (diagnostic_round_id, assessment_type, sequence_no)"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_questions",
+        "conname": "uq_assessment_question_scope",
+        "definition": "UNIQUE (question_id, project_id, assessment_type)"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_responses",
+        "conname": "assessment_responses_assessment_type_check",
+        "definition": "CHECK (((assessment_type)::text = ANY (ARRAY[('PRE'::character varying)::text, ('POST'::character varying)::text])))"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_responses",
+        "conname": "assessment_responses_pkey",
+        "definition": "PRIMARY KEY (response_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_responses",
+        "conname": "assessment_responses_score_check",
+        "definition": "CHECK (((score >= 1) AND (score <= 5)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_responses",
+        "conname": "assessment_responses_session_id_fkey",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_responses",
+        "conname": "fk_response_question_scope",
+        "definition": "FOREIGN KEY (question_id, project_id, assessment_type) REFERENCES assessment_questions(question_id, project_id, assessment_type) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "assessment_responses",
+        "conname": "uq_session_question_resp",
+        "definition": "UNIQUE (project_id, question_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "book_skills",
+        "conname": "book_skill_map_isbn_fkey",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "book_skills",
+        "conname": "book_skill_map_pkey",
+        "definition": "PRIMARY KEY (isbn, skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "book_skills",
+        "conname": "book_skill_map_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "books",
+        "conname": "books_pkey",
+        "definition": "PRIMARY KEY (isbn)"
+      },
+      {
+        "schema": "public",
+        "table_name": "certification_skills",
+        "conname": "cert_skill_map_cert_id_fkey",
+        "definition": "FOREIGN KEY (cert_id) REFERENCES certifications(cert_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "certification_skills",
+        "conname": "cert_skill_map_pkey",
+        "definition": "PRIMARY KEY (cert_id, skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "certification_skills",
+        "conname": "cert_skill_map_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "certifications",
+        "conname": "certifications_pkey",
+        "definition": "PRIMARY KEY (cert_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "certifications",
+        "conname": "certifications_title_key",
+        "definition": "UNIQUE (title)"
+      },
+      {
+        "schema": "public",
+        "table_name": "course_skills",
+        "conname": "course_skill_map_course_id_fkey",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "course_skills",
+        "conname": "course_skill_map_pkey",
+        "definition": "PRIMARY KEY (course_id, skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "course_skills",
+        "conname": "course_skill_map_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "courses",
+        "conname": "chk_courses_difficulty",
+        "definition": "CHECK (((difficulty)::text = ANY (ARRAY[('BEGINNER'::character varying)::text, ('INTERMEDIATE'::character varying)::text, ('ADVANCED'::character varying)::text])))"
+      },
+      {
+        "schema": "public",
+        "table_name": "courses",
+        "conname": "courses_pkey",
+        "definition": "PRIMARY KEY (course_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "departments",
+        "conname": "departments_check",
+        "definition": "CHECK ((parent_department_id IS DISTINCT FROM department_id))"
+      },
+      {
+        "schema": "public",
+        "table_name": "departments",
+        "conname": "departments_department_id_institution_id_key",
+        "definition": "UNIQUE (department_id, institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "departments",
+        "conname": "departments_institution_id_department_code_key",
+        "definition": "UNIQUE (institution_id, department_code)"
+      },
+      {
+        "schema": "public",
+        "table_name": "departments",
+        "conname": "departments_institution_id_fkey",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "departments",
+        "conname": "departments_parent_department_id_institution_id_fkey",
+        "definition": "FOREIGN KEY (parent_department_id, institution_id) REFERENCES departments(department_id, institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "departments",
+        "conname": "departments_pkey",
+        "definition": "PRIMARY KEY (department_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "diagnostic_rounds",
+        "conname": "diagnostic_rounds_diagnostic_round_id_project_id_key",
+        "definition": "UNIQUE (diagnostic_round_id, project_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "diagnostic_rounds",
+        "conname": "diagnostic_rounds_pkey",
+        "definition": "PRIMARY KEY (diagnostic_round_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "diagnostic_rounds",
+        "conname": "diagnostic_rounds_project_id_fkey",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "diagnostic_rounds",
+        "conname": "diagnostic_rounds_project_id_round_number_key",
+        "definition": "UNIQUE (project_id, round_number)"
+      },
+      {
+        "schema": "public",
+        "table_name": "diagnostic_rounds",
+        "conname": "diagnostic_rounds_round_number_check",
+        "definition": "CHECK ((round_number > 0))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_certifications",
+        "conname": "employee_certifications_certification_id_fkey",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_certifications",
+        "conname": "employee_certifications_employee_id_fkey",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_certifications",
+        "conname": "employee_certifications_pkey",
+        "definition": "PRIMARY KEY (employee_id, certification_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_education_records",
+        "conname": "employee_education_records_education_level_check",
+        "definition": "CHECK ((education_level = ANY (ARRAY['middle_school_or_lower'::text, 'high_school'::text, 'associate'::text, 'bachelor'::text, 'master'::text, 'doctorate'::text, 'other'::text])))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_education_records",
+        "conname": "employee_education_records_employee_id_fkey",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_education_records",
+        "conname": "employee_education_records_major_id_fkey",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_education_records",
+        "conname": "employee_education_records_pkey",
+        "definition": "PRIMARY KEY (education_record_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_education_records",
+        "conname": "employee_education_records_school_name_check",
+        "definition": "CHECK ((length(TRIM(BOTH FROM school_name)) > 0))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_recommended_prompts",
+        "conname": "employee_recommended_prompts_display_order_check",
+        "definition": "CHECK (((display_order >= 1) AND (display_order <= 3)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_recommended_prompts",
+        "conname": "employee_recommended_prompts_employee_id_fkey",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_recommended_prompts",
+        "conname": "employee_recommended_prompts_employee_order_key",
+        "definition": "UNIQUE (employee_id, display_order)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_recommended_prompts",
+        "conname": "employee_recommended_prompts_pkey",
+        "definition": "PRIMARY KEY (prompt_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_recommended_prompts",
+        "conname": "employee_recommended_prompts_prompt_text_check",
+        "definition": "CHECK (((prompt_text IS NULL) OR (length(btrim(prompt_text)) > 0)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_skills",
+        "conname": "employee_skills_employee_id_fkey",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_skills",
+        "conname": "employee_skills_pkey",
+        "definition": "PRIMARY KEY (employee_id, skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employee_skills",
+        "conname": "employee_skills_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_department_requires_institution",
+        "definition": "CHECK (((department_id IS NULL) OR (institution_id IS NOT NULL)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_department_scope",
+        "definition": "FOREIGN KEY (department_id, institution_id) REFERENCES departments(department_id, institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_grade_requires_institution",
+        "definition": "CHECK (((job_grade_id IS NULL) OR (institution_id IS NOT NULL)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_grade_scope",
+        "definition": "FOREIGN KEY (job_grade_id, institution_id) REFERENCES job_grades(job_grade_id, institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_head_department_required",
+        "definition": "CHECK (((NOT is_department_head) OR (department_id IS NOT NULL)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_institution_id_fkey",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_number_unique",
+        "definition": "UNIQUE (institution_id, employee_number)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "employees_password_is_hash",
+        "definition": "CHECK (((password_hash IS NULL) OR (password_hash ~~ '$argon2id$%%'::text)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "users_pkey",
+        "definition": "PRIMARY KEY (employee_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "employees",
+        "conname": "users_target_job_id_fkey",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE SET NULL"
+      },
+      {
+        "schema": "public",
+        "table_name": "growth_reports",
+        "conname": "assessment_reports_pkey",
+        "definition": "PRIMARY KEY (report_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "growth_reports",
+        "conname": "assessment_reports_session_id_fkey",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "growth_reports",
+        "conname": "growth_roadmap_fk",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "growth_reports",
+        "conname": "growth_roadmap_unique",
+        "definition": "UNIQUE (roadmap_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "growth_reports",
+        "conname": "growth_same_project_fk",
+        "definition": "FOREIGN KEY (roadmap_id, project_id) REFERENCES roadmaps(roadmap_id, project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "growth_reports",
+        "conname": "uq_session_assessment_report",
+        "definition": "UNIQUE (project_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "institutions",
+        "conname": "institution_pkey",
+        "definition": "PRIMARY KEY (institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "institutions",
+        "conname": "institutions_code_unique",
+        "definition": "UNIQUE (institution_code)"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_grades",
+        "conname": "job_grades_institution_id_fkey",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_grades",
+        "conname": "job_grades_institution_id_name_key",
+        "definition": "UNIQUE (institution_id, name)"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_grades",
+        "conname": "job_grades_job_grade_id_institution_id_key",
+        "definition": "UNIQUE (job_grade_id, institution_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_grades",
+        "conname": "job_grades_pkey",
+        "definition": "PRIMARY KEY (job_grade_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_skills",
+        "conname": "job_skill_map_job_id_fkey",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_skills",
+        "conname": "job_skill_map_pkey",
+        "definition": "PRIMARY KEY (job_id, skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "job_skills",
+        "conname": "job_skill_map_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "jobs",
+        "conname": "jobs_pkey",
+        "definition": "PRIMARY KEY (job_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embedding_dimensions_check",
+        "definition": "CHECK ((dimensions = 1536))"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embedding_embedding_check",
+        "definition": "CHECK ((vector_norm(embedding) > (0)::double precision))"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embedding_input_sha256_check",
+        "definition": "CHECK ((length(input_sha256) = 64))"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embedding_pkey",
+        "definition": "PRIMARY KEY (resource_type, resource_id, embedding_model)"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embeddings_certification_id_fkey",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embeddings_course_id_fkey",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embeddings_isbn_fkey",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embeddings_job_id_fkey",
+        "definition": "FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embeddings_major_id_fkey",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "learning_resource_embeddings_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "resource_kind_check",
+        "definition": "CHECK ((resource_type = ANY (ARRAY['skills'::text, 'courses'::text, 'books'::text, 'certifications'::text, 'jobs'::text, 'majors'::text])))"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "vector_one_source",
+        "definition": "CHECK ((num_nonnulls(skill_id, course_id, isbn, certification_id, job_id, major_id) = 1))"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "vector_source_matches_key",
+        "definition": "CHECK ((((resource_type = 'skills'::text) AND ((skill_id)::text = resource_id)) OR ((resource_type = 'courses'::text) AND ((course_id)::text = resource_id)) OR ((resource_type = 'books'::text) AND ((isbn)::text = resource_id)) OR ((resource_type = 'certifications'::text) AND ((certification_id)::text = resource_id)) OR ((resource_type = 'jobs'::text) AND ((job_id)::text = resource_id)) OR ((resource_type = 'majors'::text) AND ((major_id)::text = resource_id))))"
+      },
+      {
+        "schema": "public",
+        "table_name": "learning_resource_embeddings",
+        "conname": "vector_type_matches_source",
+        "definition": "CHECK (\nCASE resource_type\n    WHEN 'skills'::text THEN (skill_id IS NOT NULL)\n    WHEN 'courses'::text THEN (course_id IS NOT NULL)\n    WHEN 'books'::text THEN (isbn IS NOT NULL)\n    WHEN 'certifications'::text THEN (certification_id IS NOT NULL)\n    WHEN 'jobs'::text THEN (job_id IS NOT NULL)\n    WHEN 'majors'::text THEN (major_id IS NOT NULL)\n    ELSE false\nEND)"
+      },
+      {
+        "schema": "public",
+        "table_name": "major_skills",
+        "conname": "major_skill_map_major_id_fkey",
+        "definition": "FOREIGN KEY (major_id) REFERENCES majors(major_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "major_skills",
+        "conname": "major_skill_map_pkey",
+        "definition": "PRIMARY KEY (major_id, skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "major_skills",
+        "conname": "major_skill_map_skill_id_fkey",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "majors",
+        "conname": "majors_pkey",
+        "definition": "PRIMARY KEY (major_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "projects",
+        "conname": "projects_draft_prompt_version_id_fkey",
+        "definition": "FOREIGN KEY (draft_prompt_version_id) REFERENCES prompt_versions(prompt_version_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "projects",
+        "conname": "projects_plan_prompt_version_id_fkey",
+        "definition": "FOREIGN KEY (plan_prompt_version_id) REFERENCES prompt_versions(prompt_version_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "projects",
+        "conname": "roadmap_sessions_pkey",
+        "definition": "PRIMARY KEY (project_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "projects",
+        "conname": "roadmap_sessions_user_id_fkey",
+        "definition": "FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "prompt_versions",
+        "conname": "prompt_versions_agent_id_check",
+        "definition": "CHECK (((agent_id)::text = ANY ((ARRAY['agent_practical'::character varying, 'agent_certified'::character varying, 'agent_fasttrack'::character varying, 'agent_plan_draft'::character varying, 'agent_plan_refine'::character varying])::text[])))"
+      },
+      {
+        "schema": "public",
+        "table_name": "prompt_versions",
+        "conname": "prompt_versions_parent_version_id_fkey",
+        "definition": "FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(prompt_version_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "prompt_versions",
+        "conname": "prompt_versions_pkey",
+        "definition": "PRIMARY KEY (prompt_version_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "prompt_versions",
+        "conname": "uq_agent_version",
+        "definition": "UNIQUE (agent_id, version_num)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_comments",
+        "conname": "roadmap_comments_author_employee_id_fkey",
+        "definition": "FOREIGN KEY (author_employee_id) REFERENCES employees(employee_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_comments",
+        "conname": "roadmap_comments_body_check",
+        "definition": "CHECK ((length(TRIM(BOTH FROM body)) > 0))"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_comments",
+        "conname": "roadmap_comments_pkey",
+        "definition": "PRIMARY KEY (comment_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_comments",
+        "conname": "roadmap_comments_roadmap_id_fkey",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_certification_id_fkey",
+        "definition": "FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_check",
+        "definition": "CHECK ((num_nonnulls(course_id, isbn, certification_id) = 1))"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_course_id_fkey",
+        "definition": "FOREIGN KEY (course_id) REFERENCES courses(course_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_isbn_fkey",
+        "definition": "FOREIGN KEY (isbn) REFERENCES books(isbn)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_pkey",
+        "definition": "PRIMARY KEY (step_resource_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_step_id_certification_id_key",
+        "definition": "UNIQUE (step_id, certification_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_step_id_course_id_key",
+        "definition": "UNIQUE (step_id, course_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_step_id_fkey",
+        "definition": "FOREIGN KEY (step_id) REFERENCES roadmap_steps(step_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_step_resources",
+        "conname": "roadmap_step_resources_step_id_isbn_key",
+        "definition": "UNIQUE (step_id, isbn)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_check",
+        "definition": "CHECK (((target_end_date IS NULL) OR (target_start_date IS NULL) OR (target_end_date >= target_start_date)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_check1",
+        "definition": "CHECK ((is_completed = (completed_at IS NOT NULL)))"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_estimated_cost_check",
+        "definition": "CHECK ((estimated_cost >= (0)::numeric))"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_pkey",
+        "definition": "PRIMARY KEY (step_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_roadmap_id_fkey",
+        "definition": "FOREIGN KEY (roadmap_id) REFERENCES roadmaps(roadmap_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_roadmap_id_step_order_key",
+        "definition": "UNIQUE (roadmap_id, step_order)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmap_steps",
+        "conname": "roadmap_steps_step_order_check",
+        "definition": "CHECK ((step_order > 0))"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "roadmap_diagnostic_unique",
+        "definition": "UNIQUE (diagnostic_round_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "roadmap_generations_pkey",
+        "definition": "PRIMARY KEY (roadmap_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "roadmap_generations_session_id_fkey",
+        "definition": "FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "roadmap_project_identity",
+        "definition": "UNIQUE (roadmap_id, project_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "roadmap_round_scope",
+        "definition": "FOREIGN KEY (diagnostic_round_id, project_id) REFERENCES diagnostic_rounds(diagnostic_round_id, project_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "roadmaps_prompt_version_id_fkey",
+        "definition": "FOREIGN KEY (prompt_version_id) REFERENCES prompt_versions(prompt_version_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "roadmaps",
+        "conname": "uq_generation_scope",
+        "definition": "UNIQUE (roadmap_id, project_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "skill_tags",
+        "conname": "skill_tags_pkey",
+        "definition": "PRIMARY KEY (skill_id)"
+      },
+      {
+        "schema": "public",
+        "table_name": "skill_tags",
+        "conname": "skill_tags_skill_name_key",
+        "definition": "UNIQUE (name)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_item_definitions",
+        "conname": "evaluation_item_definition_id_schema_uq",
+        "definition": "UNIQUE (evaluation_item_definition_id, evaluation_result_schema_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_item_definitions",
+        "conname": "evaluation_item_definition_parent_fk",
+        "definition": "FOREIGN KEY (parent_item_id, evaluation_result_schema_id) REFERENCES regulations.evaluation_item_definitions(evaluation_item_definition_id, evaluation_result_schema_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_item_definitions",
+        "conname": "evaluation_item_definition_pkey",
+        "definition": "PRIMARY KEY (evaluation_item_definition_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_item_definitions",
+        "conname": "evaluation_item_definition_schema_code_uq",
+        "definition": "UNIQUE (evaluation_result_schema_id, item_code)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_item_definitions",
+        "conname": "evaluation_item_definition_schema_fk",
+        "definition": "FOREIGN KEY (evaluation_result_schema_id) REFERENCES regulations.evaluation_result_schemas(evaluation_result_schema_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_item_definitions",
+        "conname": "evaluation_item_definition_skill_fk",
+        "definition": "FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_result_schemas",
+        "conname": "evaluation_result_schema_institution_fk",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_result_schemas",
+        "conname": "evaluation_result_schema_pkey",
+        "definition": "PRIMARY KEY (evaluation_result_schema_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_schema_sources",
+        "conname": "evaluation_schema_source_id_schema_fk",
+        "definition": "FOREIGN KEY (evaluation_item_definition_id, evaluation_result_schema_id) REFERENCES regulations.evaluation_item_definitions(evaluation_item_definition_id, evaluation_result_schema_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_schema_sources",
+        "conname": "evaluation_schema_source_node_fk",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_schema_sources",
+        "conname": "evaluation_schema_source_pkey",
+        "definition": "PRIMARY KEY (evaluation_schema_source_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "evaluation_schema_sources",
+        "conname": "evaluation_schema_source_schema_fk",
+        "definition": "FOREIGN KEY (evaluation_result_schema_id) REFERENCES regulations.evaluation_result_schemas(evaluation_result_schema_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_embeddings",
+        "conname": "rag_chunk_embedding_dimensions_check",
+        "definition": "CHECK ((dimensions = 1536))"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_embeddings",
+        "conname": "rag_chunk_embedding_embedding_check",
+        "definition": "CHECK ((vector_norm(embedding) > (0)::double precision))"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_embeddings",
+        "conname": "rag_chunk_embedding_input_sha256_check",
+        "definition": "CHECK ((length(input_sha256) = 64))"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_embeddings",
+        "conname": "rag_chunk_embedding_pkey",
+        "definition": "PRIMARY KEY (rag_chunk_id, embedding_model)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_embeddings",
+        "conname": "rag_chunk_embedding_rag_chunk_id_fkey",
+        "definition": "FOREIGN KEY (rag_chunk_id) REFERENCES regulations.rag_chunks(rag_chunk_id) ON DELETE CASCADE"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_sources",
+        "conname": "rag_chunk_source_pkey",
+        "definition": "PRIMARY KEY (rag_chunk_source_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_sources",
+        "conname": "rag_chunk_source_rag_chunk_id_fkey",
+        "definition": "FOREIGN KEY (rag_chunk_id) REFERENCES regulations.rag_chunks(rag_chunk_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_sources",
+        "conname": "rag_chunk_source_rag_chunk_id_source_order_key",
+        "definition": "UNIQUE (rag_chunk_id, source_order)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunk_sources",
+        "conname": "rag_chunk_source_regulation_node_id_fkey",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunks",
+        "conname": "rag_chunk_pkey",
+        "definition": "PRIMARY KEY (rag_chunk_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "rag_chunks",
+        "conname": "rag_chunk_regulation_version_id_fkey",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_files",
+        "conname": "regulation_file_pkey",
+        "definition": "PRIMARY KEY (regulation_file_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_files",
+        "conname": "regulation_file_regulation_version_id_fkey",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_files",
+        "conname": "regulation_file_source_file_id_fkey",
+        "definition": "FOREIGN KEY (source_file_id) REFERENCES regulations.regulation_files(regulation_file_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_nodes",
+        "conname": "regulation_node_parent_node_id_fkey",
+        "definition": "FOREIGN KEY (parent_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_nodes",
+        "conname": "regulation_node_pkey",
+        "definition": "PRIMARY KEY (regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_nodes",
+        "conname": "regulation_node_regulation_file_id_fkey",
+        "definition": "FOREIGN KEY (regulation_file_id) REFERENCES regulations.regulation_files(regulation_file_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_nodes",
+        "conname": "regulation_node_regulation_version_id_fkey",
+        "definition": "FOREIGN KEY (regulation_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_references",
+        "conname": "regulation_reference_pkey",
+        "definition": "PRIMARY KEY (regulation_reference_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_references",
+        "conname": "regulation_reference_regulation_node_id_fkey",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_references",
+        "conname": "regulation_reference_target_node_id_fkey",
+        "definition": "FOREIGN KEY (target_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_references",
+        "conname": "regulation_reference_target_regulation_id_fkey",
+        "definition": "FOREIGN KEY (target_regulation_id) REFERENCES regulations.regulations(regulation_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_references",
+        "conname": "regulation_reference_target_version_id_fkey",
+        "definition": "FOREIGN KEY (target_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_scopes",
+        "conname": "regulation_scope_applies_to_node_id_fkey",
+        "definition": "FOREIGN KEY (applies_to_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_scopes",
+        "conname": "regulation_scope_pkey",
+        "definition": "PRIMARY KEY (regulation_scope_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_scopes",
+        "conname": "regulation_scope_regulation_node_id_fkey",
+        "definition": "FOREIGN KEY (regulation_node_id) REFERENCES regulations.regulation_nodes(regulation_node_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_versions",
+        "conname": "regulation_version_pkey",
+        "definition": "PRIMARY KEY (regulation_version_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_versions",
+        "conname": "regulation_version_previous_version_id_fkey",
+        "definition": "FOREIGN KEY (previous_version_id) REFERENCES regulations.regulation_versions(regulation_version_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulation_versions",
+        "conname": "regulation_version_regulation_id_fkey",
+        "definition": "FOREIGN KEY (regulation_id) REFERENCES regulations.regulations(regulation_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulations",
+        "conname": "regulation_institution_id_fkey",
+        "definition": "FOREIGN KEY (institution_id) REFERENCES institutions(institution_id)"
+      },
+      {
+        "schema": "regulations",
+        "table_name": "regulations",
+        "conname": "regulation_pkey",
+        "definition": "PRIMARY KEY (regulation_id)"
+      }
+    ],
+    "views": [
+      {
+        "schemaname": "public",
+        "viewname": "book_skill_map"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "cert_skill_map"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "course_skill_map"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "job_skill_map"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "learning_resource_embedding"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "major_skill_map"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "project_plans"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "roadmap_progress"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "roadmap_sessions"
+      },
+      {
+        "schemaname": "public",
+        "viewname": "users"
+      }
+    ],
+    "extensions": [
+      {
+        "extname": "pgcrypto",
+        "extversion": "1.3"
+      },
+      {
+        "extname": "plpgsql",
+        "extversion": "1.0"
+      },
+      {
+        "extname": "vector",
+        "extversion": "0.8.2"
+      }
+    ]
+  },
+  "scope": "All schemas, table data, vectors, functions, views and sequences in this database; cluster roles/passwords and external PDF/storage files are separate."
+}

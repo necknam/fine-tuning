@@ -1,9 +1,11 @@
-# Secrets and machine-specific state
+# Local credentials and runtime state
 .env
 .env.*
 !.env.example
 !.env.sample
 .streamlit/secrets.toml
+**/worker_credentials.json
+**/local_connection.json
 __pycache__/
 *.py[cod]
 .idea/
@@ -13,66 +15,38 @@ venv/
 env/
 .cache/
 .integration_backups/
-# Private source data, DB clusters, training records, logs and weights
-/roadmap_app/data/
-/qwen_factory/data/production/
-/qwen_factory/data/processed/
-/qwen_factory/data/eval/*
-!/qwen_factory/data/eval/prompts.jsonl
-/roadmap_app/logs/
-**/reports/
-**/outputs/
-**/checkpoints/
 *.log
-*.dump
 *.sqlite3*
 *.safetensors
 *.pt
 *.gguf
+*.bin
+**/reports/
+**/outputs/
+**/checkpoints/
 
-## roadmap_app (centralized rules)
-/roadmap_app/**/.env
-/roadmap_app/**/.env.local
-/roadmap_app/**/__pycache__/
-/roadmap_app/**/*.py[cod]
-/roadmap_app/**/*$py.class
-/roadmap_app/**/.venv/
-/roadmap_app/**/venv/
-/roadmap_app/**/env/
-/roadmap_app/**/.vscode/
-/roadmap_app/**/.idea/
-/roadmap_app/**/.DS_Store
-/roadmap_app/**/.env
-/roadmap_app/data/local_db/
+# Native PostgreSQL files are rebuilt from the tracked logical archive.
+/database/data/*
+!/database/data/exports/
+!/database/data/regulations/
+/database/data/local_db/
+/database/logs/
+*.dump
+!/database/data/exports/*.dump
 
-## qwen_factory (centralized rules)
-/qwen_factory/**/.env
-/qwen_factory/**/.env.*
-!/qwen_factory/**/.env.example
-/qwen_factory/.streamlit/secrets.toml
-/qwen_factory/**/.venv/
-/qwen_factory/**/.venv-runpod/
-/qwen_factory/**/.venv-dashboard/
-/qwen_factory/**/.cache/
-/qwen_factory/**/.idea/
-/qwen_factory/**/__pycache__/
-/qwen_factory/**/*.pyc
-/qwen_factory/**/reports/
-/qwen_factory/**/outputs/
-/qwen_factory/**/checkpoints/
-/qwen_factory/configs/local_connection.json
-/qwen_factory/configs/local_recipe_*.yaml
-/qwen_factory/configs/control_*.yaml
-/qwen_factory/**/*.sqlite3
-/qwen_factory/**/*.sqlite3-wal
-/qwen_factory/**/*.sqlite3-shm
-/qwen_factory/**/*.safetensors
-/qwen_factory/**/*.pt
-/qwen_factory/**/*.bin
-/qwen_factory/**/*.gguf
+# Frozen training/evaluation datasets are explicitly included.
 /qwen_factory/data/*
-!/qwen_factory/data/sample/
+!/qwen_factory/data/production/
 !/qwen_factory/data/eval/
+!/qwen_factory/data/sample/
+/qwen_factory/data/production/*
+!/qwen_factory/data/production/curation_1500/
+/qwen_factory/data/eval/*
+!/qwen_factory/data/eval/prompts.jsonl
+!/qwen_factory/data/eval/prompts.app_v1.jsonl
+!/qwen_factory/data/eval/prompts.app_v1.manifest.json
+!/qwen_factory/data/eval/prompts.app_v2.jsonl
+!/qwen_factory/data/eval/prompts.app_v2.manifest.json
 /qwen_factory/data/sample/*
 !/qwen_factory/data/sample/processed/
 !/qwen_factory/data/sample/eval/
@@ -82,5 +56,14 @@ env/
 !/qwen_factory/data/sample/processed/validation.jsonl
 /qwen_factory/data/sample/eval/*
 !/qwen_factory/data/sample/eval/test.jsonl
-/qwen_factory/data/eval/*
-!/qwen_factory/data/eval/prompts.jsonl
+/qwen_factory/configs/local_recipe_*.yaml
+/qwen_factory/configs/control_*.yaml
+
+# Keep regulation originals; normalized intermediates already live in the DB archive.
+/database/data/regulations/**
+!/database/data/regulations/**/
+!/database/data/regulations/**/*.pdf
+!/database/data/regulations/**/*.docx
+!/database/data/regulations/**/*.hwp
+!/database/data/regulations/**/*.hwpx
+!/database/data/regulations/**/*.xlsx

@@ -1,1 +1,0 @@
-"""GrowPath application package."""

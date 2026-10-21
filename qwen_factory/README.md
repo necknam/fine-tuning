@@ -1,18 +1,14 @@
-# GrowPath Qwen Factory
+# Qwen Factory
 
-학습·평가를 관리하는 Streamlit 앱이다. GPU 작업은 RunPod, 실험 기록은 Neon, 어댑터는 HF 저장소를 사용한다. 로드맵 앱의 로컬 DB와 별개다.
+Streamlit 실험 관리·RunPod QLoRA 학습·원본/어댑터 답변 비교를 담당한다. 실험 기록은 Neon, 가중치는 HF와 RunPod에 둔다. 옆 database의 Python 모듈이나 로컬 DB에 의존하지 않는다.
 
 ```powershell
-cd C:/final_team2/project/qwen_factory
+python -m pip install -r requirements.txt
 streamlit run scripts/local_dashboard.py
 ```
 
-Cloud 배포는 저장소 necknam/fine-tuning, 브랜치 main, 최상위 streamlit_app.py를 유지한다. Cloud에는 별도 Secrets를 설정한다. 비밀값·DB 파일·실제 학습 JSONL은 Git에 올리지 않는다.
+Cloud는 necknam/fine-tuning main의 최상위 streamlit_app.py다. 로컬 .env와 Cloud Secrets는 별도 관리한다. 확정 학습1,500건과 공통10개 입력은 data에 포함하며 가중치·체크포인트·비밀값은 Git에서 제외한다. GPU 의존성은 Linux RunPod 전용 requirements-runpod.txt다.
 
-최종 데이터는 학습 1,200·검증 150·별도 평가 150건이며 공통 비교 입력 10개는 별도다. production 설정은 configs/hyperparameters.production.pinned.yaml이다. 실제 데이터 학습 화면에서 준비된 파일을 사용하거나 확정 파일 4개를 모두 업로드한다. 샘플 시험과 본 학습은 구분한다.
+현재 공통 평가 버전은 prompts.app_v2.jsonl이며 과거 app_v1 결과와 분리한다. 기존 production 설정은1,200/150/150·5 epoch·4/5 저장 흐름이다. 확정한 전체1,500건·H100·2~5 epoch 비교는 실행 코드 전환이 남아 있으므로 기본 버튼으로 준비 완료라 간주하지 않는다.
 
-[DB·데이터·학습 통합 보고서](../docs/CODEX_HANDOFF.md) · [실행·연결·복구 안내](../docs/FINETUNING_GUIDE.md)
-
-파라미터 의미·현재 설정·25개 탐색 후보는 Streamlit 안내 화면에서 확인한다. 프리셋은 검증된 최적값이 아니며 선택한 실험만 실행한다. 유료 자동 AI 평가는 기본 꺼짐이다.
-
-로컬 의존성은 requirements.txt, RunPod GPU 의존성은 requirements-runpod.txt로 분리한다. 기존 start_dashboard.ps1은 팩토리 폴더의 전용 환경을 사용한다. 설치 명령은 해당 환경에서 pip install -r requirements.txt이며, 로컬 PC에 GPU용 requirements를 설치하지 않는다.
+[실행·비교·의존성](../docs/FINETUNING_GUIDE.md) · [실험 DB](../docs/FACTORY_DATABASE.md) · [현황](../docs/CODEX_HANDOFF.md)

@@ -1,8 +1,0 @@
-# Python 3.12; direct dependencies checked against imports and PyPI on 2026-10-20.
--r requirements-db.txt
-streamlit==1.66.0
-watchdog==6.0.0
-openai==3.35.1
-numpy==2.5.4
-httpx==0.28.1
-PyYAML==6.0.3

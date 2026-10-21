@@ -1,0 +1,6 @@
+# Native PostgreSQL client tools; PostgreSQL/pgvector server is installed separately.
+psycopg[binary]==3.3.6
+python-dotenv==1.2.4
+
+# Employee password storage matches the existing Argon2id CHECK constraint.
+argon2-cffi==25.1.0

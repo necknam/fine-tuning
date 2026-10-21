@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 """Content equality is required; cache names are not assumed to be SHA-256."""
 import hashlib,tempfile,unittest
 from pathlib import Path

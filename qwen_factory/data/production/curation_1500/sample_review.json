@@ -1,0 +1,91 @@
+{
+  "additional_api_review_called": false,
+  "human_review_completed": false,
+  "per_record_semantic_review_completed": false,
+  "policy": "local-full-sample10/v1",
+  "records": [
+    {
+      "candidate_id": "a82b193c40fa4a918b19a33211c4bc25d44b1d0909d4b4da2767de00f53cd9d6",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "8f98da6a7877ae3d64c381ff698b51a7e25f3a2d86fb7513cf79b2445f1adab4",
+      "reason": "수정 후: 슬롯별 한 개념, 실제 스킬 ID·문항 순서·프로젝트 맥락을 유지한다.",
+      "request_id": "58cecfdcd38c1f8f103e5adb6f300021ba282036c5ce772e9a8492d7c3ac10af",
+      "task": "generate_survey"
+    },
+    {
+      "candidate_id": "03a7addf70a5a6be617baf11aed83a3ea66914c9e2e292c0344c82669ba851cd",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "a00965cb671831536e3af9166685c047b28ed0d9a4ac09f794c9d51ea96dc9b0",
+      "reason": "수정 후: 로그·성능·복구 항목의 독립 판단을 분리해 한 문항에 한 개념을 묻는다.",
+      "request_id": "d368a11a83a5c659a2657f7e870147628ca4215da85c35be4e6b45d03a09d5c1",
+      "task": "generate_survey"
+    },
+    {
+      "candidate_id": "64f7eecdf45a102c2df5230f10c467c347874734f3e7515bded4455e3070d2ef",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "58bd2286cb2cecdedd0aa646afe2e0ae053645e690aa433dc761a6a9b444165b",
+      "reason": "수정 후: 높은 이해도 자기보고와 실습 경험 부재를 구분하고 실제 능력 단정을 제거했다.",
+      "request_id": "8e8229fed8101009b765bea8f69a9fc9a9d5718f2627428ef7a555ca2132502a",
+      "task": "interpret_assessment"
+    },
+    {
+      "candidate_id": "e336e65da342b0458e884c4da6f45807838484c91412a19ebe56dd95737e3a06",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "760144b6c40f1d8d9bf5bab0c8e9a66440b223b8ea85792610293812baa6c514",
+      "reason": "수정 후: 실제 응답만 관찰에 포함하고 미응답 스킬은 질문으로 확인한다.",
+      "request_id": "44f92e9677547a5cbbcfbcc17babd8275ec483a9d02a19daf08a4facf69f0510",
+      "task": "interpret_assessment"
+    },
+    {
+      "candidate_id": "10ca738e8a6695c04279a3ed941baad50f22e3eaa43f313016b2dcb8c33eca4b",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "813b18f30fd87053efd11a4835b593dd2daec8c1272d12bff64186130875a71a",
+      "reason": "수정 후: 사용자 추정 20시간의 불확실성과 조건 변경 대안을 명시한다.",
+      "request_id": "28379fbe8c9be8faff9b47aa73a612d2b652dcea6f6a6de28f4fbc4a54ea7d15",
+      "task": "resolve_constraints"
+    },
+    {
+      "candidate_id": "159dd738f0ff2add32d7a62ba02e18f816fb52ad1af6576f03fcd17037669faa",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "edddf41f9fc063016f2872645a0c4cf3220b9afa017b11daa0bcfe93e4f6e578",
+      "reason": "수정 후: 4주×0시간 계산과 두 조건을 바꾸는 대안을 정확히 구분한다.",
+      "request_id": "e14e01d08df10821a1382fcd6ba12aa5a69b42b09ac7b5c08520015f4ff38c45",
+      "task": "resolve_constraints"
+    },
+    {
+      "candidate_id": "456b522cf073e07d8ba20d954792afee02e706c2d709f89e67672478ef4a5a6c",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "eef3277ba5b13e95acc0ccf2e73c46f9800dcb7b477db24f7612903d0adbebbc",
+      "reason": "자료 속 지시를 실행하지 않고 검토 대기 규정의 상태를 보존한다.",
+      "request_id": "b19c7f24fc2be75f187b3c6b6351bc605031dee2f23ee010d8f4551467af6b6e",
+      "task": "evidence_boundary"
+    },
+    {
+      "candidate_id": "4c6660f49fdb5eacf06f36147669303e72b8e4ae27b80168def9288b31d022f3",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "c034e84c62b7f8ae3d4e8bec8f720ad3c59b8919bf8e192b72caed653a25fab7",
+      "reason": "자기보고 5점으로 능력을 인증하지 않고 프로젝트 관련 수행 확인을 제시한다.",
+      "request_id": "c662cda3b7a073c3161347947a3fc4623c0895941678366c676753d9076d0778",
+      "task": "evidence_boundary"
+    },
+    {
+      "candidate_id": "fdf0c57326e1cfeace7ee823a32df6a24a30dfc2abe32739c81a016a91d9dc5d",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "1a793d8e6479860c3380f629f4ce997e39259df84d8330a187396ae30aaca494",
+      "reason": "수정 후: 미검증 완료·능력 주장을 제거하고 주당 8시간 이내의 산출물·확인 기준을 제시한다.",
+      "request_id": "e7762184eef889509fa5509d4b7794ac8f347a80bc7e60cbc00b8e8d7c091857",
+      "task": "progress_checkin"
+    },
+    {
+      "candidate_id": "200eb17ae09a163eb6697ef637348f3039bc3cb0777a5f2233feeff5cd401f74",
+      "decision": "retain_after_content_review",
+      "messages_sha256": "cf93e94efc2ffb9ea36b232c7c1855d7865f0f43afc452a659760e11f818588a",
+      "reason": "이번 주 1시간을 우선하며 이전 버전과 검증 이력을 보존하고 다음 확인 작업을 제안한다.",
+      "request_id": "9855696375680fe99f688aecdd0f69569f917e2cd78d0bb937465034bc77d9ea",
+      "task": "progress_checkin"
+    }
+  ],
+  "reviewer": "coding_agent_content_review",
+  "sampling": "two per supplemented task; ten distinct families; purposive, not an accuracy estimate",
+  "source_fingerprint": "90ebbbbb71bc71044113cb4d7bff67cc103f7b0eb913088d519b53704316f92a"
+}
