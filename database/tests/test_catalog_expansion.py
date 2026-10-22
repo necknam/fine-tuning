@@ -69,7 +69,7 @@ class CatalogExpansionTests(TestCase):
         self.assertEqual(request.call_args.args[1]['Page'],2)
         self.assertFalse(obj.reports['kmooc']['page_limit_reached'])
 
-    def test_kmooc_detail_matches_generic_title(self):
+    def test_kmooc_detail_rejects_generic_title(self):
         obj=ing();now=datetime.now(timezone.utc)
         raw={'id':'123','public_yn':'Y','enrollment_start':(now-timedelta(days=1)).isoformat(),
              'enrollment_end':(now+timedelta(days=1)).isoformat(),'study_end':(now+timedelta(days=2)).isoformat()}
@@ -79,8 +79,7 @@ class CatalogExpansionTests(TestCase):
             'resultCode':'00','results':{**raw,'summary':'SQL 조인과 인덱스를 직접 작성하여 데이터베이스 성능을 개선합니다.','week':'5'}}) as request:
             rows=catalog_details.enrich_kmooc(obj,[row])
         valid=catalog_details.finalize(obj,'courses',rows)
-        self.assertEqual(len(valid),1)
-        self.assertIn(1,valid[0]['matches'])
+        self.assertEqual(valid,[])  # No explicit IT subject/title: keyword mention is insufficient.
         self.assertEqual(request.call_args.args[1]['CourseId'],'123')
 
     def test_closed_kmooc_not_fetched(self):
@@ -131,7 +130,7 @@ class CatalogExpansionTests(TestCase):
         from unittest.mock import MagicMock
         from src.shared.catalog_eligibility import eligible_keys
         now=datetime.now(timezone.utc).isoformat()
-        rows=[{'job_id':1,'title':'SQL 데이터베이스 관리자','description':'SQL 조인과 데이터베이스 설계 및 운영 업무를 수행합니다.',
+        rows=[{'job_id':1,'title':'SQL 데이터베이스 관리자','description':'SQL 조인과 데이터베이스 설계 및 운영 업무를 수행하며 데이터베이스 성능을 분석하고 최적화합니다.',
                'content_status':'ready','source_url':'https://www.career.go.kr','source_verified_at':now},
               {'job_id':2,'title':'경비원','description':'시설의 출입을 관리하고 순찰하여 안전을 확보하는 업무를 수행합니다.',
                'content_status':'ready','source_url':'https://www.career.go.kr','source_verified_at':now}]

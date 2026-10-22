@@ -1,4 +1,6 @@
 """Official API detail adapters. No generated descriptions or synthetic records."""
+from src.shared.catalog_scope import scoped_matches
+from src.shared.course_enrollment import enrollment_fields,enrollment_reason
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from html import unescape
@@ -51,8 +53,7 @@ def enrich_kmooc(ing, rows):
     candidates = []
     for row in rows:
         raw = row['raw']
-        dates = [timestamp(raw.get(k)) for k in ('enrollment_start','enrollment_end','study_end')]
-        if raw.get('public_yn') == 'Y' and all(dates) and dates[0] <= now <= dates[1] and now <= dates[2]:
+        if enrollment_reason('API_KMOOC',raw,now=now) is None:
             candidates.append(row)
     endpoint = ing.config['kmooc'].get('detail_url')
     if not endpoint:
@@ -201,6 +202,7 @@ def microsoft_certifications(ing):
 def refresh_certification_status(conn):
     counts={}
     for row in conn.execute('SELECT * FROM public.certifications').fetchall():
+        if row.get('content_status') == 'scope_excluded':continue
         availability=row.get('content_status') if row.get('content_status') in ('retired','retiring','availability_needs_review') else certification_availability(row)
         status=availability if availability in ('retired','retiring','availability_needs_review') else ('needs_enrichment' if missing_fields('certifications',row) else 'ready')
         if row.get('content_status')!=status:
@@ -258,12 +260,22 @@ def career_majors(ing, title_pattern):
     return [r for r in fetched if r and 'detail_error' not in r]
 
 
+def copy_api_description(kind, fields):
+    """Reuse official subjects/curriculum when the API has no separate introduction."""
+    if kind != 'courses' and not fields.get('description'):
+        fallback={'certifications':'test_subjects','majors':'curriculum','jobs':'ncs_units'}.get(kind)
+        if fallback and fields.get(fallback):fields['description']=fields[fallback]
+
+
 def finalize(ing, kind, rows):
     now = datetime.now(timezone.utc).isoformat()
     for row in rows:
         fields = row['fields']
+        copy_api_description(kind,fields)
         fields['source_verified_at'] = now
-        if kind == 'courses': fields['source_url'] = fields.get('url')
+        if kind == 'courses':
+            fields['source_url'] = fields.get('url')
+            fields.update(enrollment_fields(row['source'],row['raw']))
         elif row['source']=='API_ODCLOUD_KDATA':
             fields['provider'] = fields.get('provider') or '한국데이터산업진흥원'
             fields['source_url'] = 'https://www.data.go.kr/data/15148115/fileData.do'
@@ -275,7 +287,7 @@ def finalize(ing, kind, rows):
         # Link from actual substantive text as well as title; no default or generated skills.
         body = '\n'.join(str(fields.get(k) or '') for k in
                          ('title','syllabus_summary','description','test_subjects','curriculum','ncs_units'))
-        row['matches'] = ing.matcher.match(body)
+        row['matches'] = scoped_matches(ing.matcher, fields)
     allowed, rejected = [], Counter()
     for row in rows:
         if not row['matches']:

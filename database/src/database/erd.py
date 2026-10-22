@@ -11,8 +11,16 @@ def render(c,template,output):
  for key,spec in data.items():
   spec['label']=LABELS.get(key.split('.')[1],key.split('.')[1])
   spec['rows']=c.execute('SELECT count(*) AS n FROM '+key).fetchone()['n']
- css=re.search(r'<style>(.*?)</style>',template.read_text(encoding='utf-8'),re.S).group(1)
- html=HTML.replace('__CSS__',css).replace('__DATA__',json.dumps(data,ensure_ascii=False,default=str).replace('<',chr(92)+'u003c'))
+ source=template.read_text(encoding='utf-8')
+ encoded=json.dumps(data,ensure_ascii=False,default=str).replace('<',chr(92)+'u003c')
+ match=re.search(r'\bconst\s+D\s*=\s*',source)
+ if match:
+  _,length=json.JSONDecoder().raw_decode(source[match.end():])
+  html=source[:match.end()]+encoded+source[match.end()+length:]
+ elif '__DATA__' in source:
+  html=source.replace('__DATA__',encoded)
+ else:
+  raise ValueError('ERD template has no schema metadata slot; preserve original UI')
  output.write_text(html,encoding='utf-8')
  return {'file':str(output),'tables':len(data),'foreign_keys':sum(len(s['fks']) for s in data.values())}
 

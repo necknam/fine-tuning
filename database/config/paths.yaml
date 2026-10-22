@@ -15,7 +15,7 @@ api:
     search_fields: ["title", "keyword"]
     list_request_budget: 100  # 나머지 호출 예산은 상세·소장 확인에 사용
     request_budget: 400  # 캐시 적중 제외. 한도 도달 시 정상 확보한 도서는 유지.
-    # kdc_code는 기존 설정을 보존합니다. 현재 keyword 검색의 필터로 전송하지 않습니다.
+    # 실제 적재·추천은 catalog_scope.py에서 KDC 004/005 또는 실습형 AI 325 및 국내 출판·한국어 상세를 강제합니다.
     kdc_code: "004"
     page_size: 50
     use_mock_books: false
@@ -53,6 +53,11 @@ api:
       majors: 500
     # 0은 개수 제한 없음. 상세·IT 스킬·현재 이용 가능성 검증 후에만 적재.
     book_keywords:
+      - "ChatGPT"
+      - "프롬프트 엔지니어링"
+      - "AI 에이전트"
+      - "AI 업무 자동화"
+      - "코파일럿"
       - "컴퓨터 비전"
       - "자연어 처리"
       - "생성형 AI"
@@ -72,3 +77,4 @@ api:
       - "알고리즘"
       - "소프트웨어"
       - "정보보안"
+

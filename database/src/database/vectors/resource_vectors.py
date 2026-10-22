@@ -93,6 +93,8 @@ def embedding_text(kind, record):
 
 def sources(conn):
     """Only whitelisted real DB fields and real relation rows enter the index."""
+    from src.shared.catalog_eligibility import eligible_keys
+    allowed, _ = eligible_keys(conn)
     result = {}
     skill_names = {r['skill_id']: r['name'] for r in conn.execute(
         'SELECT skill_id,name FROM public.skill_tags').fetchall()}
@@ -104,6 +106,8 @@ def sources(conn):
         projected = [f"to_jsonb(t)->>'{c}' AS {c}" if c in ('description','source_url','content_status') else f't.{c}' for c in columns]
         for row in conn.execute(f'SELECT {",".join(projected)} FROM public.{table} t ORDER BY {pk}').fetchall():
             key = (kind, str(row[pk]))
+            if kind != 'skills' and key not in allowed:
+                continue
             row = dict(row)
             if mapping:
                 row['linked_skill_ids'] = sorted(links.get(key[1], set()))

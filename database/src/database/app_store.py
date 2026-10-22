@@ -1,7 +1,7 @@
 """Canonical persistence behind the existing local app API; no UI or LLM calls."""
 import json
 from uuid import uuid4
-from datetime import datetime,timezone
+from datetime import date,datetime,timezone
 from psycopg.types.json import Jsonb
 from src.shared.assessment_schema import validate_questions,validate_responses
 
@@ -62,6 +62,7 @@ def extend(Base):
     def _employee_profiles(self,c,employee_id=None,test_only=False):
         return c.execute("""SELECT e.employee_id,e.employee_id AS user_id,e.name,e.email,e.source_type,
             e.institution_id,e.employee_number,e.department_id,e.job_grade_id,e.job_id,e.is_department_head,
+            e.hire_date,e.department_start_date,
             coalesce(d.name,e.department,'') AS department,
             coalesce(g.name,e.grade,'') AS grade,coalesce(j.title,e.job_title,'') AS job_title
             FROM public.employees e LEFT JOIN public.departments d USING(department_id)
@@ -77,6 +78,26 @@ def extend(Base):
         with self.transaction() as c:
             rows=self._employee_profiles(c,user_id_value(employee_id))
             return rows[0] if rows else None
+
+    def update_employee_dates(self,employee_id,*,hire_date,department_start_date):
+        """Set both dates explicitly; None clears an unknown date. Accept date or ISO YYYY-MM-DD."""
+        from .db_client import user_id_value
+        def parse(value):
+            if value is None:return None
+            if type(value) is date:return value
+            if isinstance(value,str):
+                try:
+                    parsed=date.fromisoformat(value)
+                    if parsed.isoformat()==value:return parsed
+                except ValueError:pass
+            raise ValueError('Employee dates must be YYYY-MM-DD, date, or None')
+        hire_date=parse(hire_date);department_start_date=parse(department_start_date)
+        if hire_date and department_start_date and department_start_date<hire_date:
+            raise ValueError('Department start date cannot precede hire date')
+        with self.transaction() as c:
+            row=c.execute("UPDATE public.employees SET hire_date=%s,department_start_date=%s,updated_at=now() WHERE employee_id=%s RETURNING employee_id",(hire_date,department_start_date,user_id_value(employee_id))).fetchone()
+            if row is None:raise ValueError('Employee does not exist')
+        return True
 
     def update_employee_assignment(self,employee_id,*,institution_id,employee_number,department_id,job_grade_id,job_id):
         from .db_client import user_id_value

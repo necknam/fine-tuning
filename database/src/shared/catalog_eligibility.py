@@ -1,4 +1,6 @@
 """Fail closed on unknown availability. No generated evidence and no DB mutations."""
+from src.shared.catalog_scope import scope_reason, scoped_matches
+from src.shared.course_enrollment import enrollment_reason
 from collections import Counter
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -32,7 +34,12 @@ def public_url(value, hosts):
 
 
 def exclusion_reason(kind, fields, source, raw, fetched_at, *, now=None):
+    reason = scope_reason(kind, fields, source, raw)
+    if reason:
+        return reason
     now = now or datetime.now(timezone.utc)
+    if fields.get('content_status') not in (None, 'ready'):
+        return 'not_ready'
     if kind == 'books':
         return 'insufficient_catalog_metadata' if missing_fields(kind, fields) else None
     checked = timestamp(fetched_at)
@@ -66,13 +73,10 @@ def exclusion_reason(kind, fields, source, raw, fetched_at, *, now=None):
         if source == 'API_MS_LEARN':
             if (raw.get('type') == 'module' and raw.get('uid') and raw.get('units')
                     and public_url(raw.get('url'), {'learn.microsoft.com'})):
-                return None
+                return enrollment_reason(source,raw,fields=fields,now=now)
             return 'missing_published_learning_module'
         if source == 'API_KMOOC':
-            dates = [timestamp(raw.get(k)) for k in ('enrollment_start', 'enrollment_end', 'study_end')]
-            if all(dates) and dates[0] <= now <= dates[1] and now <= dates[2] and raw.get('public_yn') == 'Y':
-                return None
-            return 'course_not_confirmed_open'
+            return enrollment_reason(source,raw,fields=fields,now=now)
         return 'unsupported_availability_source'
     if kind == 'jobs' and source == 'API_CAREERNET':
         return None if (raw.get('detail_record') or {}).get('baseInfo', {}).get('job_cd') else 'missing_current_job_detail'
@@ -97,12 +101,7 @@ def eligible_keys(conn):
             key = (kind, str(fields[pk]))
             body = '\n'.join(str(fields.get(f) or '') for f in ('title','syllabus_summary','description','test_subjects','curriculum','ncs_units'))
             count += 1
-            if kind == 'books':
-                reason = exclusion_reason(kind, fields, None, None, None, now=None)
-                if reason:reasons[reason] += 1
-                else:eligible.add(key)
-                continue
-            if not matcher.match(body):
+            if not scoped_matches(matcher, fields):
                 reasons['no_it_skill_evidence'] += 1
                 continue
             failures = [exclusion_reason(kind, fields, s['source'], s['payload'], s['fetched_at'])
