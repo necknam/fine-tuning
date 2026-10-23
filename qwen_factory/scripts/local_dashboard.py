@@ -252,18 +252,27 @@ def duration_text(seconds):
 
 def measured_training_speed(text, expected_steps):
     import re,statistics
-    samples=[]
+    points=[]
     for line in text.replace("\r","\n").splitlines():
         if "Loading weights" in line:
             continue
-        match=re.search(r"(\d+)%.*?\|\s*(\d+)/(\d+)\s*\[.*?,\s*([0-9.]+)s/it",line)
-        if match and int(match[3])==expected_steps and int(match[2])>=2 and int(match[1])<100:
-            samples.append(float(match[4]))
+        match=re.search(r"(\d+)%.*?\|\s*(\d+)/(\d+)\s*\[([0-9:]+)<",line)
+        if not match or int(match[3])!=expected_steps:
+            continue
+        parts=[int(part) for part in match[4].split(":")]
+        elapsed=sum(part*60**i for i,part in enumerate(reversed(parts)))
+        point=(int(match[2]),elapsed)
+        if not points or point!=points[-1]:
+            points.append(point)
+    # Resumed tqdm counts restored steps in its s/it average. Only actual
+    # elapsed differences between successive new steps measure current speed.
+    samples=[(later[1]-earlier[1]) for earlier,later in zip(points,points[1:])
+             if later[0]-earlier[0]==1 and later[1]>earlier[1]]
     return statistics.median(samples[-5:]) if samples else None
 
 
 def show_measured_estimate(job,started,kst):
-    import math
+    import math,re
     with st.expander("현재 학습 설정의 예상 시간 · 실측 속도 기준",expanded=True):
         config=job.get("config")
         path=ROOT/config if config else None
@@ -286,14 +295,13 @@ def show_measured_estimate(job,started,kst):
         if speed is None:
             st.info("학습 속도 측정 중 · 학습 진행 로그가 쌓이면 예상 시간이 표시됩니다.")
             return
-        target_steps=steps
+        completed=max([int(m[1]) for m in re.finditer(r"(\d+)/(\d+)\s*\[",job.get("log_tail","")) if int(m[2])==steps]+[0])
+        target_steps=max(0,steps-completed)
         seconds=target_steps*speed
-        st.metric(f"학습 {count:,}개 · {int(training['num_train_epochs'])}에포크 예상 학습 시간",duration_text(seconds))
-        if started:
-            end=datetime.fromtimestamp(started,kst)+timedelta(seconds=seconds)
-            st.caption("작업 시작 시각을 기준으로 순수 학습 시간만 더한 참고 시각: "+end.strftime("%m/%d %H:%M"))
-        st.caption(f"측정 {speed:.1f}초/스텝 × {target_steps:,}스텝 · GPU 1장 / 유효 배치 {effective}. 최근 최대 5개 학습 속도의 중앙값을 사용합니다.")
-        st.caption("현재 샘플의 처리 속도를 실제 데이터에 적용한 참고값입니다. 실제 데이터 길이가 달라지면 달라집니다. 모델 로딩·검증·저장·답변 생성 시간은 제외하며, 전체 보고서 완료 시각으로 표시하지 않습니다.")
+        st.metric(f"학습 {count:,}개 · {int(training['num_train_epochs'])}에포크 남은 예상 학습 시간",duration_text(seconds))
+        st.caption(f"로그 기준 {completed:,}/{steps:,}스텝 완료 · 남은 {target_steps:,}스텝")
+        st.caption(f"측정 {speed:.1f}초/스텝 × 남은 {target_steps:,}스텝 · GPU 1장 / 유효 배치 {effective}. 복원한 스텝을 제외하고 최근 최대 5개 스텝의 실제 경과 시간 차이 중앙값을 사용합니다.")
+        st.caption("최근 실제 학습 속도로 계산한 남은 시간입니다. 입력 길이에 따라 달라집니다. 모델 로딩·검증·저장·답변 생성 시간은 제외하며, 전체 보고서 완료 시각으로 표시하지 않습니다.")
 
 
 
@@ -365,7 +373,7 @@ with st.sidebar:
         try:
             client = RunPodClient(url, token, remote)
             client.connect()
-            for name in ("runpod_bridge.py", "control_pipeline.py", "compare_factory_sample.py", "db_registry.py", "runpod_factory_sample.py", "prepare_data.py", "factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
+            for name in ("runpod_bridge.py", "control_pipeline.py", "model_runtime.py", "runtime_migration.py", "compare_factory_sample.py", "db_registry.py", "runpod_factory_sample.py", "prepare_data.py", "factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
                 client.contents("scripts/"+name, (ROOT / "scripts" / name).read_text(encoding="utf-8"))
             st.session_state.client = client
             st.session_state["_poll_requested"]=True
