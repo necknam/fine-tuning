@@ -115,8 +115,9 @@ def check_settings(cfg):
     epochs=t['num_train_epochs'];saved=recipe['artifacts']['save_epochs']
     if type(epochs) is not int or not 1<=epochs<=50 or not saved or any(type(x)is not int or not 1<=x<=epochs for x in saved) or len(saved)!=len(set(saved)):
         raise ValueError('Invalid epoch/save plan')
-    if t["packing"] or not t["bf16"] or type(t["gradient_checkpointing"]) is not bool or t["eval_strategy"] != "epoch":
-        raise ValueError("Expected packing=false, bf16=true, boolean gradient_checkpointing, eval_strategy=epoch")
+    expected_eval = "no" if cfg["data"].get("training_scope") == "all_1500_fixed10" else "epoch"
+    if t["packing"] or not t["bf16"] or type(t["gradient_checkpointing"]) is not bool or t["eval_strategy"] != expected_eval:
+        raise ValueError("Expected packing=false, bf16=true, boolean gradient_checkpointing and matching validation policy")
     if not t["gradient_checkpointing"] and t["per_device_train_batch_size"] != 1:
         raise ValueError("Disabling activation checkpointing is validated only with GPU batch 1; larger batches exhausted A100 memory")
     if type(q.get('load_in_4bit')) is not bool or q["bnb_4bit_compute_dtype"] != "bfloat16":
@@ -137,6 +138,8 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     from transformers import (AutoModelForImageTextToText, AutoTokenizer, BitsAndBytesConfig,
                               Trainer, TrainerCallback, TrainingArguments, set_seed)
     from transformers.trainer_utils import get_last_checkpoint
+    from model_runtime import configure
+    configure(cfg)
     recipe = cfg["experiments"][0]
     t = recipe["training"]
     output = factory_output(root,record["run_id"],plan["config"]["is_sample"])
@@ -149,9 +152,9 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         except importlib.metadata.PackageNotFoundError:pass
     runtime = {"pipeline": "sample_factory_v1" if plan["config"]["is_sample"] else "production_factory_v1", "loss": loss_policy,
         "config_hash": plan["config_hash"], "model": cfg["model"], "packages": versions,
-        "cuda": torch.version.cuda,
+        "cuda": torch.version.cuda, "execution_backend": cfg.get("runtime", {}),
         "script_sha256": {name: digest(root / "scripts" / name) for name in
-                          ("runpod_factory_sample.py", "factory_state.py", "db_registry.py")},
+                          ("runpod_factory_sample.py", "factory_state.py", "db_registry.py", "model_runtime.py")},
         "safety_override": "full checkpoint at every epoch in addition to configured step checkpoints"}
     resume = None
     if output.exists():
@@ -175,14 +178,15 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
     training = encode_all(root / cfg["data"]["train_file"], tokenizer, t["max_length"], loss_policy=loss_policy)
-    validation = encode_all(root / cfg["data"]["validation_file"], tokenizer, t["max_length"], loss_policy=loss_policy)
+    validation = (encode_all(root / cfg["data"]["validation_file"], tokenizer, t["max_length"], loss_policy=loss_policy)
+                  if cfg["data"].get("validation_file") else None)
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise ValueError("Exactly one visible CUDA GPU required")
     gpu = torch.cuda.get_device_properties(0)
     if gpu.total_memory < 75 * 2**30 or not torch.cuda.is_bf16_supported():
         raise ValueError("A single BF16-capable GPU with at least 75GiB is required; actual memory fit still needs measurement")
-    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'}: train={len(training)} validation={len(validation)}; epochs={t['num_train_epochs']}; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
-    print("Loss policy: "+loss_policy+"; "+("synthetic integration test." if sample_mode(cfg) else "production dataset; assess quality using held-out answers."), flush=True)
+    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'}: train={len(training)} validation={len(validation) if validation is not None else 0}; epochs={t['num_train_epochs']}; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
+    print("Loss policy: "+loss_policy+"; "+("synthetic integration test." if sample_mode(cfg) else "production dataset; assess quality using the configured report inputs."), flush=True)
     if not output.exists():
         output.mkdir(parents=True, exist_ok=False)
         (output / "runtime_manifest.json").write_text(json.dumps(runtime, indent=2), encoding="utf-8")
@@ -279,7 +283,7 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         per_device_eval_batch_size=t["per_device_eval_batch_size"],
         bf16=True, gradient_checkpointing=t["gradient_checkpointing"],
         gradient_checkpointing_kwargs={"use_reentrant": False}, optim=t["optim"],
-        logging_steps=t["logging_steps"], eval_strategy="epoch",
+        logging_steps=t["logging_steps"], eval_strategy=t["eval_strategy"],
         prediction_loss_only=True, save_strategy="steps", save_steps=cp["save_steps"],
         save_total_limit=cp["save_total_limit"], save_only_model=False,
         report_to="none", seed=t["seed"], data_seed=t["data_seed"],

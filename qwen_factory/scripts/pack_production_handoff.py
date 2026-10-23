@@ -14,7 +14,7 @@ def pack(root):
     files=list((root/'scripts').glob('*.py'))+list((root/'tests').glob('test_*.py'))
     files+=list((root/'configs').glob('hyperparameters*.yaml'))
     files+=[root/n for n in ('requirements-runpod.txt','requirements.txt','README.md','.env.example')]
-    files+=[root/cfg['data'][k] for k in ('train_file','validation_file','heldout_test_file','test_file')]
+    files+=[root/cfg['data'][k] for k in ('train_file','validation_file','heldout_test_file','test_file') if cfg['data'].get(k)]
     companion=(root/cfg['data']['test_file']).with_suffix('.manifest.json')
     if companion.is_file():files.append(companion)
     docs=[root.parent/'docs'/n for n in ('CODEX_HANDOFF.md','FINETUNING_GUIDE.md')]

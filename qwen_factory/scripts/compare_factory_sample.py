@@ -88,6 +88,7 @@ def find_base_cache(root,cfg,messages,generation,manifest,batch_context):
         base=data.get("base",{})
         if (data.get("batch_context_sha256")==batch_context
             and data.get("packages")==packages
+            and data.get("inference_runtime",{})==cfg.get("runtime",{})
             and data.get("model")==cfg["model"]
             and data.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
             and data.get("messages")==messages and data.get("generation")==generation
@@ -174,6 +175,8 @@ def main():
     from transformers import AutoModelForImageTextToText, AutoTokenizer
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise ValueError("Run in the existing single-GPU RunPod environment")
+    from model_runtime import configure
+    configure(cfg)
     evaluation_precision = {"load_in_4bit": False, "dtype": "bfloat16"}
     if not torch.cuda.is_bf16_supported():
         raise ValueError("BF16 evaluation requires a BF16-capable GPU")
@@ -244,7 +247,7 @@ def main():
                 "reference_status":"fixed_dataset_answer_not_expert_validated" if reference is not None else "no_reference_output_comparison_only","generation":generation,"input_tokens":input_length,
                 "inference_batch_size":len(selected),
                 "batch_context_sha256":batch_context,
-                "packages":inference_packages(),
+                "packages":inference_packages(),"inference_runtime":cfg.get("runtime",{}),
                 "inference_memory":{"peak_allocated_gib":torch.cuda.max_memory_allocated()/2**30,"peak_reserved_gib":torch.cuda.max_memory_reserved()/2**30},
                 "base_reused":cached_base is not None,"base_source_report":str(cached_base[0].relative_to(root)) if cached_base else None,
                 "base":base_response,"tuned":tuned_response,"texts_identical":base_response["text"]==tuned_response["text"]}

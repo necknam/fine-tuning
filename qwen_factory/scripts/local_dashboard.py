@@ -434,11 +434,12 @@ def pull_reports(client, overview):
 
 def publish(cfg):
     c=connection()
-    for name in ("control_pipeline.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
+    for name in ("control_pipeline.py","model_runtime.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
         c.contents("scripts/"+name,(ROOT/"scripts"/name).read_text(encoding="utf-8"))
     is_sample=sample_mode(cfg)
     prefix="data/sample" if is_sample else "data/production"
     for field in ("train_file","validation_file"):
+        if not cfg["data"].get(field):continue
         path=(ROOT/cfg["data"][field]).resolve()
         path.relative_to((ROOT/prefix).resolve())
         text=path.read_text(encoding="utf-8-sig")
@@ -507,8 +508,7 @@ with experiment_tab:
             format_func=lambda value:"샘플 시험" if value=="sample" else "실제 데이터 학습",key="dataset_mode_v2")
         st.caption("새 실험 등록은 항상 새 실행 ID를 만듭니다. 기존 가중치 사용과 중단 실험 이어하기는 해당 보고서·실행 이력에서만 선택합니다.")
         production_configs={
-            '개선 데이터 v4 · 2·5에포크 비교':'hyperparameters.compare.reviewed_v4.yaml',
-            '이전 데이터 v1 · 2·5에포크 비교':'hyperparameters.compare.baseline_v1.yaml',
+            '개선 데이터 v4 · 전체 1500건 · 2·5에포크 비교':'hyperparameters.compare.reviewed_v4_full1500.yaml',
             '기존 학습 설정':'hyperparameters.production.pinned.yaml'}
         if dataset_mode=='production':
             version=st.selectbox('학습 데이터·비교 설정',list(production_configs))
@@ -527,40 +527,42 @@ with experiment_tab:
         if dataset_mode=="sample":
             st.info("샘플 시험 · 가상 학습54개 / 검증3개. 실제 학습과 가중치·보고서를 구분합니다.")
         else:
-            st.info("확정 데이터: 학습 1,200 · 검증 150 · 별도 평가 150 · 공통 비교 입력 10개. Cloud에는 파일을 직접 업로드하세요.")
-            fields=('train_file','validation_file','heldout_test_file')
+            full=base['data'].get('training_scope')=='all_1500_fixed10'
+            st.info("확정 데이터: 1,500건 전체 학습 · 고정 10개 입력 평가. 이전 데이터는 저장된 가중치를 사용합니다." if full else "기존 분할 학습 설정입니다. 현재 개선 데이터 실험은 전체 1,500건 설정을 선택하세요.")
+            fields=tuple(field for field in ('train_file','validation_file','heldout_test_file') if base['data'].get(field))
             data_ready=config_source==production_config and all((ROOT/base['data'][field]).is_file() for field in fields) and (ROOT/base['evaluation']['file']).is_file()
             with st.expander("학습·평가 데이터 준비" if not data_ready else "데이터 확인·교체",expanded=not data_ready):
-                st.caption("학습 1200 · 검증 150 · 별도 평가 150 · 공통 입력 10개. 확정한 파일을 모두 올리세요.")
+                st.caption("학습 all.jsonl 1,500건과 공통 입력 10개를 올리세요." if full else "기존 설정의 학습·검증·별도 평가·공통 입력 파일을 올리세요.")
                 left,right=st.columns(2)
                 with left:
                     train_upload=st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train")
-                    heldout_upload=st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout")
+                    heldout_upload=st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout") if not full else None
                 with right:
-                    validation_upload=st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation")
+                    validation_upload=st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation") if not full else None
                     report_upload=st.file_uploader("공통 입력 JSONL",type=["jsonl"],key="production_report")
-                uploads={'train':train_upload,'validation':validation_upload,'heldout':heldout_upload,'report':report_upload}
+                uploads={'train':train_upload,'report':report_upload}
+                if not full:uploads.update(validation=validation_upload,heldout=heldout_upload)
             if any(value is not None for value in uploads.values()):
                 data_ready=False
                 if all(value is not None for value in uploads.values()):
                     try:
                         prepare_data.install_curated_uploads(ROOT,{key:value.getvalue() for key,value in uploads.items()},base)
                         data_ready=True
-                        st.success("4개 파일 해시·건수·평가 분리 확인 완료")
+                        st.success("필수 파일 해시·건수·평가 입력 확인 완료")
                     except (ValueError,UnicodeError,OSError) as error:
                         st.error("데이터를 확인하세요: "+str(error))
                 else:
-                    st.caption("평가 누락을 방지하기 위해 4개 파일을 모두 올려야 등록할 수 있습니다.")
+                    st.caption("선택한 설정에 필요한 파일을 모두 올려야 등록할 수 있습니다.")
             elif data_ready:
-                st.caption("로컬에 준비된 확정 데이터 4개를 사용합니다. 등록 시 해시를 다시 확인합니다.")
+                st.caption("준비된 확정 데이터를 사용합니다. 등록 시 해시를 다시 확인합니다.")
             else:
-                st.caption("데이터는 GitHub에 올리지 않습니다. 이 화면에서 확정 파일 4개를 직접 올리세요.")
+                st.caption("데이터는 GitHub에 올리지 않습니다. 이 화면에서 필요한 확정 파일을 직접 올리세요.")
         recipe=base["experiments"][0]
         with st.expander("현재 데이터 위치"):
             st.caption("선택한 학습/검증 파일을 내용 해시로 고정해 전송합니다. 학습 등록 후 파일 내용이 바뀌면 실행을 차단합니다.")
             st.dataframe([
                 {"구분":"학습", "파일":base["data"]["train_file"]},
-                {"구분":"검증", "파일":base["data"]["validation_file"]},
+                {"구분":"검증", "파일":base["data"].get("validation_file") or "별도 검증 분할 없음 · 전체 학습"},
                 {"구분":"평가 입력", "파일":base["data"]["test_file"]},
             ],hide_index=True)
         defaults={**recipe["training"],**recipe["lora"],**changes}
@@ -902,7 +904,7 @@ with review_tab:
                 if st.button("기존 가중치 BF16 답변 생성",key="bf16_existing_"+manifest["run_id"]):
                     try:
                         c=connection()
-                        for name in ("control_pipeline.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
+                        for name in ("control_pipeline.py","model_runtime.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
                             c.contents("scripts/"+name,(ROOT/"scripts"/name).read_text(encoding="utf-8"))
                         cfg_path=ROOT/"reports/run_configs"/(manifest["run_id"]+".yaml")
                         config_name="configs/control_bf16_"+manifest["run_id"]+".yaml"
@@ -1096,7 +1098,7 @@ with guide_tab:
     if guide_tab.open:
         st.subheader("파라미터 설명 · 설정할 때 참고하세요")
         st.caption("현재 실행 기준과 상세 설명을 함께 확인할 수 있습니다. 설명을 읽어도 실행 설정은 바뀌지 않습니다.")
-        guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.compare.reviewed_v4.yaml').read_text(encoding='utf-8-sig'))
+        guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.compare.reviewed_v4_full1500.yaml').read_text(encoding='utf-8-sig'))
         training=guide_config['experiments'][0]['training']
         lora=guide_config['experiments'][0]['lora']
         st.caption("확정 데이터의 기준 설정입니다. 선택한 실험에서 수정한 값은 파라미터 화면과 실행 보고서에서 확인하세요.")
@@ -1104,7 +1106,7 @@ with guide_tab:
         a.metric("학습 횟수",f"{training['num_train_epochs']} epoch")
         b.metric("유효 배치",str(training['per_device_train_batch_size']*training['gradient_accumulation_steps']))
         c.metric("최대 입력·답변 길이",f"{training['max_length']:,} 토큰")
-        st.info("이번 학습: 1,200건 학습 · 150건 검증 · 150건 별도 평가. 모든 비교에 같은 보고서 입력 10개를 사용합니다.")
+        st.info("이번 학습: 개선 데이터 1,500건 전체 · 5에포크 학습 · 2·5에포크 저장. 기존 저장 가중치와 같은 고정 10개 입력으로 비교합니다.")
         st.markdown("### 파라미터를 이해하는 순서")
         cards=[
             ("01 · 학습률",f"현재 **{training['learning_rate']:.5f}** · 한 번에 모델을 얼마나 조정할지 정합니다.",

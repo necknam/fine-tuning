@@ -128,15 +128,25 @@ def build_plans(root, config_path, is_sample):
         raise ValueError("Dataset mode does not match registration mode")
     data = config["data"]
     train = dataset_info(root, data["train_file"], is_sample)
-    validation = dataset_info(root, data["validation_file"], is_sample)
+    full = data.get("training_scope") == "all_1500_fixed10"
+    if full and (is_sample or data.get("validation_file") or data.get("heldout_test_file")):
+        raise ValueError("Full 1500 mode forbids sample/validation/heldout partitions")
+    validation = dataset_info(root, data["validation_file"], is_sample) if not full else None
+    if full:
+        if train["rows"] != 1500 or data.get("expected_train_samples") != 1500:
+            raise ValueError("Full training requires exactly 1500 records")
+        training_text((root/data["train_file"]).read_text(encoding="utf-8-sig"))
+        if config.get("evaluation", {}).get("mode") != "shared_fixed_10":
+            raise ValueError("Full training requires the fixed ten report inputs")
     for field,info in (("train",train),("validation",validation)):
+        if info is None:continue
         expected_hash=data.get(field+"_sha256")
         if expected_hash and info["sha256"]!=expected_hash:
             raise ValueError(field+" dataset changed after submission")
-    if config.get('dataset_mode')=='production':
+    if config.get('dataset_mode')=='production' and validation is not None:
         validate_dataset_pair((root/data['train_file']).read_text(encoding='utf-8-sig'),
                               (root/data['validation_file']).read_text(encoding='utf-8-sig'))
-    if train["sha256"] == validation["sha256"]:
+    if validation is not None and train["sha256"] == validation["sha256"]:
         raise ValueError("Training and validation files are identical")
     heldout=None
     if data.get('heldout_test_file'):
@@ -158,6 +168,8 @@ def build_plans(root, config_path, is_sample):
     plans = []
     for experiment in experiments:
         training = experiment["training"]
+        if full and training.get("eval_strategy") != "no":
+            raise ValueError("Full training disables validation-loss evaluation")
         total = training["num_train_epochs"]
         epochs = experiment["artifacts"]["save_epochs"]
         if not isinstance(epochs, list) or not epochs or any(type(e) is not int or e < 1 or e > total for e in epochs):
@@ -182,6 +194,8 @@ def build_plans(root, config_path, is_sample):
         if config.get('experiment_id'):
             uuid.UUID(config['experiment_id'])
             canonical.update(identity_version=2,experiment_id=config['experiment_id'])
+        if config.get('runtime'):canonical['runtime']=config['runtime']
+        if full:canonical['data']['training_scope']='all_1500_fixed10'
         if heldout is not None:canonical['data']['heldout']=heldout
         blob = json.dumps(canonical, sort_keys=True, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         plans.append({"recipe_name": experiment["recipe_name"],
