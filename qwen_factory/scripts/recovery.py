@@ -1,5 +1,6 @@
 """Reconnect control sessions without submitting or resuming GPU jobs."""
 import time
+import json
 from pathlib import Path
 import app_settings
 from runpod_client import RunPodClient
@@ -14,9 +15,11 @@ def reconnect(root, state, force=False):
         return state.get('client')
     old=state.get('client')
     remembered=state.get('_reconnect_settings',{})
-    url=app_settings.get(root,'RUNPOD_JUPYTER_URL',getattr(old,'url',remembered.get('url','')))
+    public_path=Path(root)/'reports/connection_settings.json'
+    public=json.loads(public_path.read_text(encoding='utf-8')) if public_path.exists() else {}
+    url=getattr(old,'url','') or remembered.get('url') or public.get('url') or app_settings.get(root,'RUNPOD_JUPYTER_URL','')
     token=app_settings.get(root,'RUNPOD_JUPYTER_TOKEN',getattr(old,'token',remembered.get('token','')))
-    remote=app_settings.get(root,'RUNPOD_REMOTE_PATH',getattr(old,'remote_path',remembered.get('remote','workspace/qwen_factory')))
+    remote=getattr(old,'remote_path','') or remembered.get('remote') or public.get('remote_path') or app_settings.get(root,'RUNPOD_REMOTE_PATH','workspace/qwen_factory')
     if not (url and token):
         state['recovery_notice']='저장 기록 복원 완료 · 최신 RunPod 상태를 보려면 왼쪽에서 연결하세요.'
         return old

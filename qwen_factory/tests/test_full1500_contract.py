@@ -43,3 +43,31 @@ class FullTrainingContract(unittest.TestCase):
             cfg['experiments'][0]['training']['eval_strategy']='epoch'
             path.write_text(yaml.safe_dump(cfg),encoding='utf-8')
             with self.assertRaisesRegex(ValueError,'disables'):build_plans(root,path,False)
+
+class LiveTrainingStage(unittest.TestCase):
+    def stage(self,text,kind='experiment'):
+        import ast
+        tree=ast.parse((ROOT/'scripts/local_dashboard.py').read_text(encoding='utf-8'))
+        node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='job_stage')
+        env={};exec(compile(ast.Module(body=[node],type_ignores=[]),'stage-test','exec'),env)
+        return env['job_stage']({'state':'RUNNING','kind':kind,'log_tail':text})
+    def test_real_steps_replace_loading_stage(self):
+        log="PIPELINE: train or resume\nLoading weights: 100%| 1184/1184 [05:36]\n 1%| 4/470 [05:45<11:14:29, 86.84s/it]\n{'loss': '0.6601', 'epoch': '0.04267'}"
+        self.assertEqual(self.stage(log)[0],'학습 진행')
+    def test_inference_loading_is_never_reported_as_training(self):
+        self.assertEqual(self.stage('PIPELINE: compare epoch=2 cases=10\nLoading weights: 51%| 600/1184 [01:00]')[0],'평가 입력 답변 생성')
+        self.assertEqual(self.stage('SAVED B200 EVALUATION: epoch=2; pending=[0]; no training','evaluate_saved_b200')[0],'기존 가중치 평가 진행')
+
+class SavedConnectionRecovery(unittest.TestCase):
+    def test_validated_public_address_survives_stale_cloud_default(self):
+        from unittest.mock import patch
+        import recovery
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);path=root/'reports/connection_settings.json';path.parent.mkdir()
+            public={'url':'https://current-8888.proxy.runpod.net','remote_path':'workspace/qwen_factory'}
+            path.write_text(json.dumps(public),encoding='utf-8')
+            settings={'RUNPOD_JUPYTER_URL':'https://obsolete-8888.proxy.runpod.net','RUNPOD_JUPYTER_TOKEN':'fixture-token'}
+            with patch.object(recovery.app_settings,'get',side_effect=lambda root,key,default='':settings.get(key,default)),patch.object(recovery,'RunPodClient') as client:
+                self.assertIs(recovery.reconnect(root,{},force=True),client.return_value)
+                client.assert_called_once_with(public['url'],'fixture-token',public['remote_path'])
+            self.assertEqual(set(json.loads(path.read_text(encoding='utf-8'))),{'url','remote_path'})

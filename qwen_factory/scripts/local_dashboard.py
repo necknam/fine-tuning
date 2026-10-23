@@ -203,6 +203,7 @@ def concise_log(text):
 
 
 def job_stage(job):
+    import re
     text=job.get("log_tail","")
     current,next_step="작업 준비","실험 등록"
     # Stage comes from observed markers; the separate duration estimate is a user-facing reference.
@@ -213,6 +214,12 @@ def job_stage(job):
             current,next_step="모델 준비·학습","가중치 저장·업로드"
         elif "Loading weights:" in line and "답변 생성" not in current:
             current,next_step="모델 불러오기","학습 진행"
+        elif ("Loading weights" not in line and re.search(r"\|\s*[1-9]\d*/\d+\s*\[",line)) or ("'loss':" in line and "'epoch':" in line):
+            current,next_step="학습 진행","지정한 에포크 저장·업로드"
+        elif "SAVED B200 EVALUATION:" in line:
+            current,next_step="기존 가중치 평가 진행","답변 생성 · 재학습 없음"
+        elif "UPLOADED epoch=2" in line:
+            current,next_step="2에포크 저장·업로드 완료","5에포크까지 학습 진행"
         elif "BF16 MODEL READY" in line:
             current,next_step="BF16 모델 준비 완료","평가 입력 답변 생성"
         elif "UPLOADED epoch=4" in line:
@@ -230,7 +237,7 @@ def job_stage(job):
         return "완료","보고서에서 답변 평가" if job.get("kind") in ("experiment","continue_experiment") else "작업 결과 확인"
     if state in ("FAILED","INTERRUPTED"):
         return "실패" if state=="FAILED" else "중단","오류 확인 후 이어하기"
-    if job.get("kind")=="evaluate_existing" and current in ("작업 준비","모델 준비·학습"):
+    if job.get("kind") in ("evaluate_existing","evaluate_saved_b200") and current in ("작업 준비","모델 준비·학습"):
         return "기존 가중치 BF16 평가 준비","답변 생성 · 재학습 없음"
     return current,next_step
 
@@ -345,12 +352,15 @@ with st.sidebar:
     auto_ai=st.toggle("새 답변 전체 자동 AI 평가",value=False,key="auto_ai_evaluation")
     st.caption("입력·답변을 OpenAI API로 전송하며 호출 비용이 발생합니다. 이미 평가한 답변은 건너뜁니다.")
     st.header("RunPod 연결")
-    settings_path = ROOT / "configs/local_connection.json"
-    saved = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {}
-    url = st.text_input("Jupyter 주소", app_settings.get(ROOT,"RUNPOD_JUPYTER_URL",saved.get("url", "")))
+    load_view("connection")
+    settings_path = ROOT / "reports/connection_settings.json"
+    previous_settings = ROOT / "configs/local_connection.json"
+    source_settings = settings_path if settings_path.exists() else previous_settings
+    saved = json.loads(source_settings.read_text(encoding="utf-8")) if source_settings.exists() else {}
+    url = st.text_input("Jupyter 주소", saved.get("url") or app_settings.get(ROOT,"RUNPOD_JUPYTER_URL", ""))
     token = st.text_input("Jupyter 토큰 또는 비밀번호", type="password", value=app_settings.get(ROOT,"RUNPOD_JUPYTER_TOKEN", ""))
     st.caption("RunPod의 JUPYTER_PASSWORD 또는 Jupyter 로그인에 쓴 값입니다. HF 토큰·RunPod API 키와 다릅니다.")
-    remote = st.text_input("Jupyter 내 프로젝트 경로", app_settings.get(ROOT,"RUNPOD_REMOTE_PATH",saved.get("remote_path", "workspace/qwen_factory")))
+    remote = st.text_input("Jupyter 내 프로젝트 경로", saved.get("remote_path") or app_settings.get(ROOT,"RUNPOD_REMOTE_PATH", "workspace/qwen_factory"))
     if st.button("연결", type="primary"):
         try:
             client = RunPodClient(url, token, remote)
@@ -360,7 +370,9 @@ with st.sidebar:
             st.session_state.client = client
             st.session_state["_poll_requested"]=True
             st.session_state.pop("recovery_service_ready",None)
+            settings_path.parent.mkdir(parents=True,exist_ok=True)
             settings_path.write_text(json.dumps({"url": client.url, "remote_path": remote}, indent=2), encoding="utf-8")
+            dashboard_store.persist(ROOT,settings_path)
             st.success("연결 완료 · 토큰은 파일에 저장하지 않습니다.")
         except Exception as error:
             st.error(redact(str(error)))
@@ -715,7 +727,7 @@ with experiment_tab:
                 finished=[j for j in jobs if j["state"] not in ("RUNNING","QUEUED") or j.get("stale")]
                 show_all=st.checkbox("지난 실험 전체 보기",value=False)
                 for job in reversed(finished if show_all else finished[-10:]):
-                    state=("이전 연결의 마지막 확인: " if job.get("stale") else "")+{"SUCCEEDED":"완료","FAILED":"실패","INTERRUPTED":"중단"}.get(job["state"],job["state"])
+                    state=("이전 연결의 마지막 확인: " if job.get("stale") else "")+{"SUCCEEDED":"완료","FAILED":"실패","INTERRUPTED":"중단","CANCELLED":"취소됨"}.get(job["state"],job["state"])
                     with st.expander(state+" · "+(job.get("label") or job["job_id"])):
                         show_job_times(job)
                         show_job_log(job)
