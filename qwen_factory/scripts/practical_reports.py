@@ -43,11 +43,14 @@ def render(report,side='tuned'):
  stages=roadmap.get('milestones',roadmap.get('stages',[]))
  for i,stage in enumerate(stages,1):
   if not isinstance(stage,dict):continue
-  lines += [f"### {i}. {text(stage.get('phase_name',stage.get('title',stage.get('name'))))}",'',f"- 목표: {text(stage.get('focus_goal'))}",f"- 기간: {text(stage.get('duration'))} · 시간: {text(stage.get('hours'))}시간 · 비용: {text(stage.get('cost_krw'))}원"]
+  lines += [f"### {i}. {text(stage.get('phase_name',stage.get('title',stage.get('name'))))}",'',f"- 목표: {text(stage.get('focus_goal'))}",f"- 기간: {text(stage.get('duration'))} · 시간: {text(stage.get('hours'))}시간 · 비용: {text(stage.get('cost_krw',stage.get('cost')))}원"]
   actions=stage.get('key_actions',[])
   if stage.get('activity'):lines.append('- 활동: '+text(stage['activity']))
   if isinstance(actions,list):lines += ['- 활동: '+text(x) for x in actions]
-  lines += [f"- 산출물: {text(stage.get('deliverable'))}",f"- 완료 기준: {text(stage.get('completion_criterion'))}"]
+  deliverables=stage.get('deliverable',stage.get('deliverables'))
+  if isinstance(deliverables,list):lines += ['- 산출물: '+text(item) for item in deliverables]
+  else:lines.append('- 산출물: '+text(deliverables))
+  lines.append('- 완료 기준: '+text(stage.get('completion_criterion')))
   for field,kind,pk in [('recommended_courses','courses','course_id'),('recommended_books','books','isbn'),('recommended_certifications','certifications','cert_id')]:
    source={str(x.get(pk)):x for x in ctx.get(kind,[]) if isinstance(x,dict)}
    for selected in stage.get(field,[]) or []:
@@ -57,7 +60,7 @@ def render(report,side='tuned'):
     url=fact.get('url') or fact.get('source_url')
     if isinstance(url,str) and url.startswith('https://'):lines.append('- 자료 출처: '+url)
   lines.append('')
- lines+=['## 합계와 확인 사항','',f"- 총기간: {text(roadmap.get('total_duration_weeks'))}주",f"- 총시간: {text(roadmap.get('total_hours'))}시간",f"- 총비용: {text(roadmap.get('total_cost_krw'))}원",f"- 규정 안내: {text(roadmap.get('regulation_summary'))}",f"- 규정 인용: {text(roadmap.get('regulation_citations'))}"]
+ lines+=['## 합계와 확인 사항','',f"- 총기간: {text(roadmap.get('total_duration_weeks'))}주",f"- 총시간: {text(roadmap.get('total_hours'))}시간",f"- 총비용: {text(roadmap.get('total_cost_krw',roadmap.get('total_cost')))}원",f"- 규정 안내: {text(roadmap.get('regulation_summary'))}",f"- 규정 인용: {text(roadmap.get('regulation_citations'))}"]
  for item in roadmap.get('confirmation_needed',[]) or []:lines.append('- 추가 확인: '+text(item))
  retrieval=ctx.get('retrieval') or {}
  lines+=['','## 조회 근거 추적','',f"- 원본 동기화 해시: {text(retrieval.get('source_receipt_sha256'))}",f"- 평가 입력 해시: {text(report.get('test_sha256'))}",'','※ 빈 항목은 입력·모델 응답에서 확인되지 않은 값입니다. 보고서 변환 과정에서 숫자·근거·승인 상태를 채워 넣지 않았습니다.']
