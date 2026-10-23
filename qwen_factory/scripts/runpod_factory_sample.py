@@ -154,13 +154,16 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
         "config_hash": plan["config_hash"], "model": cfg["model"], "packages": versions,
         "cuda": torch.version.cuda, "execution_backend": cfg.get("runtime", {}),
         "script_sha256": {name: digest(root / "scripts" / name) for name in
-                          ("runpod_factory_sample.py", "factory_state.py", "db_registry.py", "model_runtime.py")},
+                          ("runpod_factory_sample.py", "factory_state.py", "db_registry.py", "model_runtime.py", "runtime_migration.py")},
         "safety_override": "full checkpoint at every epoch in addition to configured step checkpoints"}
     resume = None
     if output.exists():
         old = json.loads((output / "runtime_manifest.json").read_text(encoding="utf-8"))
         if old != runtime:
-            raise ValueError("Runtime/config changed; do not resume with different code or packages")
+            if not args.resume:
+                raise ValueError("Runtime/config changed; migration requires checkpoint resume")
+            from runtime_migration import accept
+            accept(output,old,runtime)
         if not args.resume:
             raise ValueError("This run already has a local directory. Use --resume; nothing overwritten.")
         resume = get_last_checkpoint(str(output / "checkpoints")) if (output / "checkpoints").is_dir() else None

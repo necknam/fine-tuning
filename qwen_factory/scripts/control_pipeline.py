@@ -64,6 +64,9 @@ def main():
     expected_epochs=set(cfg['experiments'][0]['artifacts']['save_epochs'])
     if len(snapshots)!=len(expected_epochs) or {snapshot['trained_epoch'] for snapshot in snapshots}!=expected_epochs:
         raise ValueError("Saved artifacts differ from the registered epoch plan")
+    if os.environ.get('QF_LINEAR_ATTENTION_BACKEND'):
+        from model_runtime import configure
+        configure(cfg)
     if cfg.get('live_evaluation',{}).get('enabled'):
         print('진행 안내: 학습 완료. 최신 Cloud DB 근거를 조회해 고정10개 입력을 확정합니다.',flush=True)
         from cloud_evaluation import freeze

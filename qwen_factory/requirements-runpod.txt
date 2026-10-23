@@ -21,5 +21,6 @@ fla-core==0.5.2
 flash-linear-attention==0.5.2
 causal-conv1d @ https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.7.0/causal_conv1d-1.7.0+cu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
 
-# Matches the validated torch 2.8 Linux CUDA runtime.
+# Torch 2.8 resolver baseline. For the verified B200 repair, install the
+# separate requirements-kernel-b200.txt with --no-deps AFTER this file.
 triton==3.4.0
