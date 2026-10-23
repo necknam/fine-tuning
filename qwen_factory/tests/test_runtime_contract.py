@@ -134,14 +134,14 @@ class ParameterPanelTests(TestCase):
   self.assertFalse(app.exception)
   self.assertEqual(app.radio[0].value,'production')
   length=lambda:next(w.value for w in app.selectbox if w.label=='최대 토큰 길이')
-  self.assertEqual(length(),10240)
+  self.assertEqual(length(),7168)
   self.assertTrue(any(x.label=='고급 설정 · 정규화·스케줄·평가' for x in app.expander))
   app.radio[0].set_value('sample').run()
   self.assertFalse(app.exception)
   self.assertEqual(length(),2048)
   app.radio[0].set_value('production').run()
   self.assertFalse(app.exception)
-  self.assertEqual(length(),10240)
+  self.assertEqual(length(),7168)
   self.assertNotIn(2048,next(w.options for w in app.selectbox if w.label=='최대 토큰 길이'))
 
 
@@ -156,7 +156,7 @@ class ParameterGuideTests(TestCase):
           +"from experiment_presets import PRESET_GUIDE_MARKDOWN\nROOT=Path("+repr(str(ROOT))+")\n")
   app=AppTest.from_string(prefix+textwrap.dedent(source[start:end]),default_timeout=15).run()
   self.assertFalse(app.exception)
-  self.assertEqual([m.value for m in app.metric],['5 epoch','16','10,240 토큰'])
+  self.assertEqual([m.value for m in app.metric],['5 epoch','16','7,168 토큰'])
   headings=[m.value for m in app.markdown]
   self.assertTrue(any('01 · 학습률' in x for x in headings))
   self.assertTrue(any('06 · 학습 횟수와 비교' in x for x in headings))

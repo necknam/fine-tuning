@@ -1,3 +1,13 @@
+## 최신 사용자 재승인 · 이전 원본 복구 후 P02~P06 즉시 실행
+
+사용자가 v4 대신 이전 원본 데이터로 P02~P06을 바로 진행하고20분마다 이메일을 다시 보내라고 지시했다. 아래 v4 품질gate FAILED는 해당v4 실험의 최종 결과로 유지한다. 이번 이전원본 신규 프리셋 실행을 막는 조건으로 사용하지 않는다. P01 재학습은 하지 않는다.
+
+RunPod 원본 data/revision_1500/assembled/all.jsonl을 로컬 data/production/restored_baseline_v1/all.jsonl로 복구했고1500건·SHA256 998a9499a14f6c08de0526919567bcf5a9fcf31642f75aa24fca143c51265529가 기존가중치 manifest와 일치한다. 현재 curation_1500/all.jsonl은 다른 해시이므로 원본으로 혼동하지 않는다. 기본 UI와 설명 설정은 restored_baseline_v1.P01로 되돌렸다. v4 데이터/가중치/비교기록은 삭제하지 않는다.
+
+신규 configs/hyperparameters.restored_baseline_v1.P02~P06.yaml: 전체1500/분할0/5epoch/저장2·5/max7168/BF16/seed42/고속FLA-Triton3.6. P02 lr5e-5,P03 lr7.5e-5,P04 lr1.5e-4,P05 r16alpha32,P06 r64alpha128. 학습·HF가중치저장검증·기존고정10묶음백업만 실행하고 답변 생성하지 않는다. 현재PC GPU/모델다운로드/로컬DB변경 금지와 다른PC 미구현 후속을 유지한다.
+
+실행계획 Documents/Codex/restored-baseline-p02-p06-plan.json 및 Pod outputs/restored_baseline_p02_p06/plan.json이 최신이다. 중복 제출 금지,한프리셋 성공/가중치백업검증 후 다음 제출. P06완료 후 기존STOP만 시도/실패시 이메일 정책을 적용한다. 상세 실제job/run ID는 이 계획과 active-training-state.json에서 확인한다.
+
 # 현재 작업 핸드오프 · 2026-10-23
 
 이 절이 최신 지시이며 아래2026-10-21 과거 기록의 실행 계획보다 우선한다.

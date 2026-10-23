@@ -528,10 +528,10 @@ with experiment_tab:
             format_func=lambda value:"샘플 시험" if value=="sample" else "실제 데이터 학습",key="dataset_mode_v2")
         st.caption("새 실험 등록은 항상 새 실행 ID를 만듭니다. 기존 가중치 사용과 중단 실험 이어하기는 해당 보고서·실행 이력에서만 선택합니다.")
         production_configs={
-            '개선 데이터 v4 · 전체 1500건 · 2·5에포크 비교':'hyperparameters.compare.reviewed_v4_full1500.yaml',
-            '기존 학습 설정':'hyperparameters.production.pinned.yaml'}
+            '복구한 이전 원본 · 전체 1500건 · 2·5에포크 저장':'hyperparameters.restored_baseline_v1.P01.yaml',
+            '이전 분할 학습 설정 · 보관':'hyperparameters.production.pinned.yaml'}
         if dataset_mode=='production':
-            version=st.selectbox('학습 데이터·비교 설정',list(production_configs))
+            version=st.selectbox('학습 데이터·비교 설정',list(production_configs),key='production_version_restored_v1')
             production_config=ROOT/'configs'/production_configs[version]
         else:production_config=ROOT/'configs/hyperparameters.production.pinned.yaml'
         config_source=production_config if dataset_mode=='production' and production_config.is_file() else ROOT/'configs/hyperparameters.sample.pinned.yaml'
@@ -548,14 +548,14 @@ with experiment_tab:
             st.info("샘플 시험 · 가상 학습54개 / 검증3개. 실제 학습과 가중치·보고서를 구분합니다.")
         else:
             full=base['data'].get('training_scope')=='all_1500_fixed10'
-            st.info("확정 데이터: 1,500건 전체 학습 · 고정 10개 입력 평가. 이전 데이터는 저장된 가중치를 사용합니다." if full else "기존 분할 학습 설정입니다. 현재 개선 데이터 실험은 전체 1,500건 설정을 선택하세요.")
+            st.info("확정 데이터: 1,500건 전체 학습 · 고정 10개 입력 평가. 이전 데이터는 저장된 가중치를 사용합니다." if full else "기존 분할 학습 설정입니다. 전체 1,500건 학습은 복구한 이전 원본 설정을 선택하세요.")
             fields=tuple(field for field in ('train_file','validation_file','heldout_test_file') if base['data'].get(field))
             data_ready=config_source==production_config and all((ROOT/base['data'][field]).is_file() for field in fields) and (ROOT/base['evaluation']['file']).is_file()
             with st.expander("학습·평가 데이터 준비" if not data_ready else "데이터 확인·교체",expanded=not data_ready):
                 st.caption("학습 all.jsonl 1,500건과 공통 입력 10개를 올리세요." if full else "기존 설정의 학습·검증·별도 평가·공통 입력 파일을 올리세요.")
                 left,right=st.columns(2)
                 with left:
-                    train_upload=st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train")
+                    train_upload=st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train_"+base["data"]["train_sha256"][:12])
                     heldout_upload=st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout") if not full else None
                 with right:
                     validation_upload=st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation") if not full else None
@@ -1119,7 +1119,7 @@ with guide_tab:
     if guide_tab.open:
         st.subheader("파라미터 설명 · 설정할 때 참고하세요")
         st.caption("현재 실행 기준과 상세 설명을 함께 확인할 수 있습니다. 설명을 읽어도 실행 설정은 바뀌지 않습니다.")
-        guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.compare.reviewed_v4_full1500.yaml').read_text(encoding='utf-8-sig'))
+        guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.restored_baseline_v1.P01.yaml').read_text(encoding='utf-8-sig'))
         training=guide_config['experiments'][0]['training']
         lora=guide_config['experiments'][0]['lora']
         st.caption("확정 데이터의 기준 설정입니다. 선택한 실험에서 수정한 값은 파라미터 화면과 실행 보고서에서 확인하세요.")
