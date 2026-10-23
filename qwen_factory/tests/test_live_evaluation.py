@@ -76,3 +76,32 @@ class EmployeeInputTests(unittest.TestCase):
    with patch.object(live.dashboard_store,'pg',return_value=db),patch.object(live,'fetch_ten',return_value=rows):
     live.freeze(root,cfg);cfg['live_evaluation']['case_employee_ids']=[7]*10
     with self.assertRaisesRegex(ValueError,'직원 배정'):live.freeze(root,cfg)
+
+
+class ReportInputDisplay(unittest.TestCase):
+ def test_nested_db_input_and_revision_details_are_visible_without_mutation(self):
+  request={'task':'revise_roadmap','user_context':{'goal':'고정 프로젝트','constraints':{'duration_weeks':4,'weekly_hours':3,'budget_krw':0},'profile_snapshot':{'synthetic':True,'name':'가상 직원'}},'task_data':{'current_roadmap':{'stages':[]},'user_feedback':'두 단계만 변경'},'retrieved_context':{'courses':[{'course_id':17,'title':'DB 교육','cost':None}],'books':[],'certifications':[]}}
+  original=copy.deepcopy(request);view=practical_reports.input_view(request)
+  self.assertEqual(request,original)
+  self.assertEqual((view['goal'],view['weekly_hours'],view['budget_krw']),('고정 프로젝트',3,0))
+  self.assertEqual(view['revision_request'],'두 단계만 변경')
+  self.assertEqual(view['resources'][0]['resource_id'],17)
+  self.assertIsNone(view['resources'][0]['cost'])
+  self.assertEqual(view['existing_roadmap'],{'stages':[]})
+ def test_legacy_flat_input_is_used_as_supplied_in_report(self):
+  request={'goal':'기존 프로젝트','duration_weeks':2,'weekly_hours':4,'budget_krw':9000,'perspective':'시간 우선'}
+  report={'messages':[{'role':'user','content':json.dumps(request)}],'tuned':{'text':json.dumps({'stages':[{'name':'확인 단계','activity':'고정 입력 실행'}]})}}
+  output=practical_reports.render(report)
+  for text in ['기존 프로젝트','시간 우선','2주','9000원','확인 단계','고정 입력 실행']:self.assertIn(text,output)
+  self.assertIn('총비용: 미확인',output)
+ def test_cloud_input_panel_understands_nested_contract(self):
+  import ast
+  from streamlit.testing.v1 import AppTest
+  source=(ROOT/'scripts/local_dashboard.py').read_text(encoding='utf-8');tree=ast.parse(source)
+  snippets='\n'.join(ast.get_source_segment(source,node) for node in tree.body if isinstance(node,ast.FunctionDef) and node.name in ('parse_payload','case_request','show_input'))
+  request={'user_context':{'goal':'검증 프로젝트','constraints':{'duration_weeks':4,'weekly_hours':3,'budget_krw':12000}},'retrieved_context':{'courses':[{'course_id':17,'title':'실제 DB 교육'}]}}
+  report={'messages':[{'role':'user','content':json.dumps(request)}]}
+  app=AppTest.from_string('import json,streamlit as st\n'+snippets+'\nshow_input('+repr(report)+')',default_timeout=15).run()
+  self.assertEqual(len(app.exception),0)
+  visible='\n'.join(item.value for item in app.markdown)
+  for text in ['검증 프로젝트','4주','3시간','12,000원','실제 DB 교육']:self.assertIn(text,visible)

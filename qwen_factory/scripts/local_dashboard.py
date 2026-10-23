@@ -762,7 +762,8 @@ def case_request(report):
     users=[m["content"] for m in report["messages"] if m["role"]=="user"]
     text=users[-1] if users else ""
     parsed=parse_payload(text)
-    return parsed if isinstance(parsed,dict) else {},text
+    from practical_reports import input_view
+    return input_view(parsed),text
 
 
 def show_input(report):
