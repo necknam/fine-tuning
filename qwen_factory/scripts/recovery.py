@@ -7,7 +7,7 @@ from runpod_client import RunPodClient
 SERVICE_FILES = ('app_settings.py','dashboard_store.py','human_reports.py',
                  'ai_evaluation.py','runpod_service.py','db_registry.py','prepare_data.py',
                  'runpod_bridge.py','control_pipeline.py','compare_factory_sample.py',
-                 'runpod_factory_sample.py','factory_state.py','runpod_client.py','recovery.py')
+                 'runpod_factory_sample.py','factory_state.py','runpod_client.py','recovery.py','cloud_evidence.py','cloud_evaluation.py','cloud_employee_context.py','practical_reports.py')
 
 def reconnect(root, state, force=False):
     if not force and time.time()-state.get('reconnect_attempt_at',0)<60:
@@ -39,7 +39,7 @@ def deploy_service(root,client,auto_ai=True):
     for name in SERVICE_FILES:
         client.contents('scripts/'+name,(root/'scripts'/name).read_text(encoding='utf-8'))
     values=app_settings.read(root)
-    env={k:values[k] for k in ('DATABASE_URL','OPENAI_API_KEY','OPENAI_EVAL_MODEL','HF_TOKEN','HF_REPO_ID') if values.get(k)}
+    env={k:values[k] for k in ('DATABASE_URL','GROWPATH_DB_URL','OPENAI_API_KEY','OPENAI_EVAL_MODEL','HF_TOKEN','HF_REPO_ID') if values.get(k)}
     env['DASHBOARD_STORAGE']='neon'
     if not env.get('DATABASE_URL'):
         raise ValueError('복구 서비스에 DATABASE_URL 설정이 필요합니다.')

@@ -80,7 +80,7 @@ def persist(root, path):
         db.commit()
 
 def allowed(key):
-    return (key in ('reports/candidate_versions.json','reports/control_history.json') or
+    return (key in ('data/eval/prompts.app_v1.jsonl','data/eval/prompts.app_v2.jsonl') or bool(re.fullmatch(r'reports/live_cohorts/[a-zA-Z0-9_-]{1,64}\.json', key)) or bool(re.fullmatch(r'data/eval/live_[a-f0-9]{64}\.jsonl', key)) or key in ('reports/candidate_versions.json','reports/control_history.json') or
         bool(re.fullmatch(r'reports/(?:smoke|heldout)_compare_[^/]+/comparison.json', key)) or
         bool(re.fullmatch(r'reports/run_configs/[^/]+\.yaml', key)) or
         bool(re.fullmatch(r'reports/human_evaluations/[^/]+\.json', key)) or

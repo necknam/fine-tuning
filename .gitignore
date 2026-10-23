@@ -67,3 +67,9 @@ env/
 !/database/data/regulations/**/*.hwp
 !/database/data/regulations/**/*.hwpx
 !/database/data/regulations/**/*.xlsx
+
+# Balanced v2 candidate; frozen v1 and active recipes are preserved.
+!/qwen_factory/data/production/curation_1500_balanced_v2/
+
+# Machine-local runtimes, backups, scratch data and credentials
+/work/

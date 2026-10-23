@@ -44,7 +44,7 @@ def main():
             run_id = record["run_id"]
         if not args.evaluate_only:
             print("PIPELINE: train or resume", flush=True)
-            print("진행 안내: 2/3 · 모델을 불러온 뒤 학습합니다. 4·5에포크 가중치를 각각 저장하고 업로드합니다.", flush=True)
+            print("진행 안내: 2/3 · 모델을 불러온 뒤 학습합니다. 설정한 에포크의 가중치를 각각 저장하고 업로드합니다.", flush=True)
         else:
             print("PIPELINE: evaluate existing adapters",flush=True)
         output = factory_output(root,run_id,is_sample)
@@ -61,8 +61,17 @@ def main():
                          .order_by(artifacts.c.trained_epoch)).mappings()]
     finally:
         engine.dispose()
-    if len(snapshots)!=2 or {snapshot["trained_epoch"] for snapshot in snapshots}!={4,5}:
-        raise ValueError("Expected exactly the registered epoch-4 and epoch-5 artifacts")
+    expected_epochs=set(cfg['experiments'][0]['artifacts']['save_epochs'])
+    if len(snapshots)!=len(expected_epochs) or {snapshot['trained_epoch'] for snapshot in snapshots}!=expected_epochs:
+        raise ValueError("Saved artifacts differ from the registered epoch plan")
+    if cfg.get('live_evaluation',{}).get('enabled'):
+        print('진행 안내: 학습 완료. 최신 Cloud DB 근거를 조회해 고정10개 입력을 확정합니다.',flush=True)
+        from cloud_evaluation import freeze
+        cfg,receipt=freeze(root,cfg)
+        inferred=config.with_name(config.stem+'_live_eval.yaml')
+        inferred.write_text(yaml.safe_dump(cfg,allow_unicode=True,sort_keys=False),encoding='utf-8')
+        args.config=inferred.relative_to(root).as_posix()
+        print('LIVE COHORT: '+json.dumps(receipt,ensure_ascii=False),flush=True)
     report_input_info(root,cfg)
     max_new_tokens=cfg.get('inference',{}).get('max_new_tokens',2048)
     cohorts=[('report',cfg['data'].get('test_file','data/sample/eval/test.jsonl'))]

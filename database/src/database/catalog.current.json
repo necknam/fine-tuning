@@ -1495,6 +1495,14 @@
         "default": null,
         "identity": "",
         "generated": ""
+      },
+      {
+        "column": "ai_mention",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
       }
     ],
     "pk": [
@@ -1709,6 +1717,14 @@
       },
       {
         "column": "image_url",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "ai_mention",
         "type": "text",
         "not_null": false,
         "default": null,
@@ -1975,6 +1991,38 @@
         "default": null,
         "identity": "",
         "generated": ""
+      },
+      {
+        "column": "enrollment_start",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "enrollment_end",
+        "type": "timestamp with time zone",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "enrollment_period_type",
+        "type": "text",
+        "not_null": true,
+        "default": "'unknown'::text",
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "ai_mention",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
       }
     ],
     "pk": [
@@ -1989,6 +2037,39 @@
         "target": "-",
         "columns": [
           "difficulty"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "courses_enrollment_order_check",
+        "type": "c",
+        "definition": "CHECK (enrollment_start IS NULL OR enrollment_end IS NULL OR enrollment_start <= enrollment_end)",
+        "target": "-",
+        "columns": [
+          "enrollment_start",
+          "enrollment_end"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "courses_enrollment_type_check",
+        "type": "c",
+        "definition": "CHECK (enrollment_period_type = ANY (ARRAY['scheduled'::text, 'unrestricted'::text, 'unknown'::text]))",
+        "target": "-",
+        "columns": [
+          "enrollment_period_type"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "courses_enrollment_values_check",
+        "type": "c",
+        "definition": "CHECK (enrollment_period_type = 'scheduled'::text AND enrollment_start IS NOT NULL AND enrollment_end IS NOT NULL OR enrollment_period_type = 'unrestricted'::text AND enrollment_start IS NULL AND enrollment_end IS NULL OR enrollment_period_type = 'unknown'::text)",
+        "target": "-",
+        "columns": [
+          "enrollment_period_type",
+          "enrollment_start",
+          "enrollment_end"
         ],
         "target_columns": []
       },
@@ -2435,6 +2516,22 @@
         "default": null,
         "identity": "",
         "generated": ""
+      },
+      {
+        "column": "enrollment_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "graduation_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
       }
     ],
     "pk": [
@@ -2467,6 +2564,17 @@
       }
     ],
     "constraints": [
+      {
+        "name": "employee_education_dates_order",
+        "type": "c",
+        "definition": "CHECK (enrollment_date IS NULL OR graduation_date IS NULL OR graduation_date >= enrollment_date)",
+        "target": "-",
+        "columns": [
+          "enrollment_date",
+          "graduation_date"
+        ],
+        "target_columns": []
+      },
       {
         "name": "employee_education_records_education_level_check",
         "type": "c",
@@ -2863,6 +2971,38 @@
         "default": "false",
         "identity": "",
         "generated": ""
+      },
+      {
+        "column": "hire_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "department_start_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "planned_project_description",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "unlisted_certifications",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
       }
     ],
     "pk": [
@@ -2949,6 +3089,17 @@
         ]
       },
       {
+        "name": "employees_department_start_after_hire",
+        "type": "c",
+        "definition": "CHECK (hire_date IS NULL OR department_start_date IS NULL OR department_start_date >= hire_date)",
+        "target": "-",
+        "columns": [
+          "hire_date",
+          "department_start_date"
+        ],
+        "target_columns": []
+      },
+      {
         "name": "employees_grade_requires_institution",
         "type": "c",
         "definition": "CHECK (job_grade_id IS NULL OR institution_id IS NOT NULL)",
@@ -2997,6 +3148,16 @@
         ]
       },
       {
+        "name": "employees_number_required",
+        "type": "c",
+        "definition": "CHECK (employee_number IS NOT NULL AND employee_number !~ '^[[:space:]]*$'::text) NOT VALID",
+        "target": "-",
+        "columns": [
+          "employee_number"
+        ],
+        "target_columns": []
+      },
+      {
         "name": "employees_number_unique",
         "type": "u",
         "definition": "UNIQUE (institution_id, employee_number)",
@@ -3014,6 +3175,26 @@
         "target": "-",
         "columns": [
           "password_hash"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_planned_project_description_nonblank",
+        "type": "c",
+        "definition": "CHECK (planned_project_description IS NULL OR length(btrim(planned_project_description)) > 0)",
+        "target": "-",
+        "columns": [
+          "planned_project_description"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_unlisted_certifications_nonblank",
+        "type": "c",
+        "definition": "CHECK (unlisted_certifications IS NULL OR length(btrim(unlisted_certifications)) > 0)",
+        "target": "-",
+        "columns": [
+          "unlisted_certifications"
         ],
         "target_columns": []
       },

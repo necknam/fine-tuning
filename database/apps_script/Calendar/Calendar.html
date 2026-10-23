@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><base target="_top">
+<style>
+*{box-sizing:border-box}body{margin:0;padding:20px;color:#243747;font:14px Arial,sans-serif;background:#fff}h1{font-size:19px;margin:0 0 6px}p{margin:6px 0 18px;color:#63717d}.navigation{display:flex;gap:8px;align-items:center}select{background:#f4f7fa;border:1px solid #b7c6d4;border-radius:7px;padding:10px;font-size:16px;flex:1}button{cursor:pointer;border:0;border-radius:7px;padding:10px;background:#edf2f6;color:#233f56;font-size:14px}button:disabled{cursor:default;opacity:.5}.week,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.week{margin-top:18px;text-align:center;color:#687a87;font-size:12px}.week span{padding:8px}.days{margin-top:6px}.days button{height:36px;padding:4px;background:#f4f7fa}.days .selected{background:#1f4e79;color:white}.days .today{outline:1px solid #7196b7}.selection{margin:18px 0 8px;padding:12px;background:#eef5fa;border-radius:8px;font-size:17px;font-weight:600}.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}.primary{background:#1f4e79;color:white}#status{min-height:35px;color:#b33434;font-size:13px;margin:0}button:focus-visible,select:focus-visible{outline:3px solid #85b4d9;outline-offset:2px}
+</style></head><body>
+<h1 id="title"></h1><p id="target"></p>
+<div class="navigation"><button id="prev" aria-label="이전 달">‹</button><select id="year" aria-label="연도"></select><select id="month" aria-label="월"></select><button id="next" aria-label="다음 달">›</button></div>
+<div class="week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+<div class="days" id="days" role="group" aria-label="날짜"></div>
+<div class="selection" id="selection"></div><div id="status" role="status" aria-live="polite"></div>
+<div class="actions"><button id="today">오늘</button><button id="cancel">취소</button><button id="save" class="primary">선택한 날짜 저장</button></div>
+<script>
+const context = <?!= contextJson ?>;
+const byId = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+let [year,month,day] = context.date.split('-').map(Number), busy=false;
+const minYear=Math.min(1900,year),maxYear=Math.max(Number(context.today.slice(0,4))+10,year);
+byId('title').textContent=context.title;
+byId('target').textContent=context.person+' · '+context.cell;
+for(let y=minYear;y<=maxYear;y++) byId('year').add(new Option(y+'년',y));
+for(let m=1;m<=12;m++) byId('month').add(new Option(m+'월',m));
+function iso(){return year+'-'+pad(month)+'-'+pad(day);}
+function render(){
+  const count=new Date(Date.UTC(year,month,0)).getUTCDate();day=Math.min(day,count);
+  byId('year').value=year;byId('month').value=month;byId('days').replaceChildren();
+  const offset=new Date(Date.UTC(year,month-1,1)).getUTCDay();
+  for(let i=0;i<offset;i++)byId('days').append(document.createElement('span'));
+  for(let d=1;d<=count;d++){
+    const b=document.createElement('button');b.textContent=d;b.type='button';
+    b.setAttribute('aria-label',year+'년 '+month+'월 '+d+'일');
+    if(d===day)b.classList.add('selected');
+    if(year+'-'+pad(month)+'-'+pad(d)===context.today)b.classList.add('today');
+    b.disabled=busy;b.onclick=()=>{day=d;render();};byId('days').append(b);
+  }
+  byId('selection').textContent=iso();
+  byId('prev').disabled=busy||(year===minYear&&month===1);
+  byId('next').disabled=busy||(year===maxYear&&month===12);
+  ['year','month','save','today'].forEach(id=>byId(id).disabled=busy);
+}
+function move(delta){const n=new Date(Date.UTC(year,month-1+delta,1));year=n.getUTCFullYear();month=n.getUTCMonth()+1;render();}
+byId('year').onchange=e=>{year=Number(e.target.value);render();};
+byId('month').onchange=e=>{month=Number(e.target.value);render();};
+byId('prev').onclick=()=>move(-1);byId('next').onclick=()=>move(1);
+byId('today').onclick=()=>{[year,month,day]=context.today.split('-').map(Number);render();};
+byId('cancel').onclick=()=>google.script.host.close();
+byId('save').onclick=()=>{
+  busy=true;byId('status').textContent='저장 중…';render();
+  google.script.run.withSuccessHandler(()=>google.script.host.close())
+    .withFailureHandler(error=>{busy=false;byId('status').textContent=error.message||'저장하지 못했습니다.';render();})
+    .saveCalendarDate(context.token,iso());
+};
+render();
+</script></body></html>

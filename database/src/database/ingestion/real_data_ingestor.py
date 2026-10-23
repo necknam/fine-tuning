@@ -1,6 +1,7 @@
 """Fetch official APIs first, upsert atomically, map by evidence, then refresh vectors."""
 from __future__ import annotations
 
+from src.shared.catalog_scope import scoped_matches
 from collections import Counter
 from datetime import datetime, timezone
 from html import unescape
@@ -24,6 +25,7 @@ from src.shared.skill_matching import SkillMatcher
 from src.database import deployment
 from src.database.vectors import resource_vectors as vector_index
 from src.database.ingestion import catalog_details
+from src.database.ingestion.ai_catalog_filter import AICatalogFilter, AIReviewError
 from src.shared.catalog_quality import missing_fields, CHILD_TITLE
 from src.shared.catalog_eligibility import exclusion_reason
 
@@ -33,7 +35,6 @@ TABLES = {'courses': ('course_id', 'course_skills'), 'books': ('isbn', 'book_ski
           'certifications': ('cert_id', 'certification_skills'), 'jobs': ('job_id', 'job_skills'),
           'majors': ('major_id', 'major_skills')}
 IT_TITLE = re.compile(r'게임|컴퓨터|소프트웨어|전산|데이터|정보통신|정보보안|정보보호|인공지능|네트워크|프로그래머|정보시스템|(?<![A-Za-z])AI(?![A-Za-z])', re.I)
-from src.database.schema_components import AUDIT_DDL
 
 
 class SourceError(RuntimeError):
@@ -73,10 +74,14 @@ def actual_url(value, base=None):
 
 
 class RealDataIngestor:
-    def __init__(self, *, client=None, config=None):
+    def __init__(self, *, client=None, config=None, ai_client=None):
+        load_dotenv(PROJECT_ROOT / '.env.local', override=True)
         load_dotenv(PROJECT_ROOT / '.env', override=False)
         self.config = config or get_paths_config()['api']
         self.client = client
+        self.ai_client = ai_client
+        self._ai_filter = None
+        self._ai_excluded = {}
         self.reports = {}
         self.matcher = None
         self.max_pages = self.config.get('ingestion', {}).get('max_pages', 50)
@@ -479,9 +484,25 @@ class RealDataIngestor:
             self.reports['careernet_majors']={'status':'FAILED','reason':type(exc).__name__}
         return rows
 
+    def _review_rows(self, kind, rows, matcher):
+        skills=list(matcher.skills.values())
+        if self._ai_filter is None or self._ai_filter.skills != {
+                s['skill_id']:{'skill_id':s['skill_id'],'name':s['name'],'category':s.get('category')} for s in skills}:
+            self._ai_filter=AICatalogFilter(skills,client=self.ai_client)
+        candidates=[{**row,'matches':scoped_matches(matcher,row['fields'])} for row in rows]
+        approved=self._ai_filter.filter(kind,candidates)
+        approved_keys={(r['source'],r['external_key']) for r in approved}
+        self._ai_excluded.setdefault(kind,set()).update(
+            (r['source'],r['external_key']) for r in candidates
+            if (r['source'],r['external_key']) not in approved_keys)
+        self._ai_excluded[kind].difference_update(approved_keys)
+        return approved
+
     def collect(self,skills,*,max_pages=None,limits=None):
         if not skills:raise ValueError('기존 skill_tags 원본을 먼저 적재하세요. 스킬을 초기화하지 않습니다.')
         self.matcher=SkillMatcher(skills)
+        self._ai_excluded={}
+        self._ai_filter=AICatalogFilter(skills,client=self.ai_client)
         settings=self.config.get('ingestion',{})
         self.max_pages=max_pages if max_pages is not None else settings.get('max_pages',50)
         if type(self.max_pages) is not int or not 1<=self.max_pages<=1000:
@@ -494,9 +515,14 @@ class RealDataIngestor:
         for kind in KINDS:
             method=getattr(self,'fetch_'+kind+'_from_api')
             try:
-                rows[kind]=self._select(kind,catalog_details.finalize(self,kind,method(limits[kind])),limits[kind])
-                if not rows[kind]:failures[kind]='NO_MATCHED_ROWS'
-                elif not any(r['fields']['content_status']=='ready' for r in rows[kind]):
+                logging.getLogger('LOAD_DATA').info('%s: 공식 API 수집·상세 검증 시작',kind)
+                candidates=catalog_details.finalize(self,kind,method(limits[kind]))
+                logging.getLogger('LOAD_DATA').info('%s: AI 심사 시작 (%s건)',kind,len(candidates))
+                approved=self._review_rows(kind,candidates,self.matcher)
+                self.reports[kind+'_ai']={'approved':len(approved),'excluded':len(candidates)-len(approved)}
+                rows[kind]=self._select(kind,approved,limits[kind])
+                if not candidates:failures[kind]='NO_MATCHED_ROWS'
+                elif rows[kind] and not any(r['fields']['content_status']=='ready' for r in rows[kind]):
                     failures[kind]='NO_RECOMMENDABLE_CONTENT'
             except SourceError as exc:
                 rows[kind]=[];failures[kind]=str(exc)
@@ -516,13 +542,40 @@ class RealDataIngestor:
     def apply(self,conn,batch,*,embed=True,embedding_client=None,allow_partial=False):
         if batch['failures'] and not allow_partial:
             raise ValueError('API 수집 실패 또는 매칭 자료 없음: '+', '.join(batch['failures'])+'. 기존 DB는 변경하지 않았습니다.')
-        if not any(batch['rows'].values()):raise ValueError('적재할 API 데이터가 없습니다.')
+        # Recompute scope and skill evidence on writes; never trust a supplied batch.
+        matcher = SkillMatcher(batch['skill_identity'])
+        for kind, rows in batch['rows'].items():
+            for row in rows:
+                reason = exclusion_reason(kind,row['fields'],row['source'],row['raw'],row['fetched_at'])
+                matches = scoped_matches(matcher,row['fields'])
+                if reason or not matches:
+                    raise ValueError('Catalog scope rejected: ' + (reason or 'no_body_skill_evidence'))
+                row['matches'] = matches
+        # Direct apply() callers must pass the same mandatory AI filter too.
+        batch={**batch,'rows':{kind:self._review_rows(kind,rows,matcher) for kind,rows in batch['rows'].items()}}
+        if not any(batch['rows'].values()) and not any(self._ai_excluded.values()):
+            raise ValueError('적재할 API 데이터가 없습니다.')
         with conn.transaction():
             conn.execute('SELECT pg_advisory_xact_lock(763250131)')
             current=conn.execute('SELECT skill_id,name,category FROM public.skill_tags ORDER BY skill_id').fetchall()
             if current!=batch['skill_identity']:raise ValueError('수집 중 스킬 태그가 변경되었습니다. 다시 실행하세요.')
-            deployment.apply_ingestion_schema(conn)
-            conn.execute(AUDIT_DDL)
+            # This loader never creates/extends the schema. Setup/migrations are separate.
+            required=['growpath_meta.catalog_api_sources','public.learning_resource_embeddings']
+            required += ['public.'+t for t in TABLES] + ['public.'+v[1] for v in TABLES.values()]
+            for table in required:
+                if not conn.execute('SELECT to_regclass(%s) AS id',(table,)).fetchone()['id']:
+                    raise ValueError('기존 DB 스키마가 필요합니다: '+table)
+            # Rejections have no review log. Disable existing candidates while preserving history FKs.
+            for kind, rejected in self._ai_excluded.items():
+                pk,map_table=TABLES[kind]
+                for source,external_key in rejected:
+                    saved=conn.execute('SELECT entity_key FROM growpath_meta.catalog_api_sources WHERE resource_type=%s AND source=%s AND external_key=%s',
+                        (kind,source,external_key)).fetchone()
+                    if saved:
+                        rid=saved['entity_key']
+                        conn.execute(f"UPDATE public.{kind} SET content_status='scope_excluded' WHERE {pk}::text=%s",(rid,))
+                        conn.execute(f'DELETE FROM public.{map_table} WHERE {pk}::text=%s',(rid,))
+                        conn.execute('DELETE FROM public.learning_resource_embeddings WHERE resource_type=%s AND resource_id=%s',(kind,rid))
             # Persist newly observed retirement notices for older rows, even though
             # the API adapter deliberately withholds those rows from new ingestion.
             for notice in batch['sources'].get('ms_certifications', {}).get('unavailable', []):
@@ -559,6 +612,7 @@ class RealDataIngestor:
                 used=set()
                 for record in records:
                     fields=dict(record['fields']);key=(record['source'],record['external_key'])
+                    catalog_details.copy_api_description(kind,fields)
                     entity_id=registry.get(key)
                     if kind in ('jobs','majors','certifications'):
                         if entity_id is not None:entity_id=int(entity_id)
@@ -596,23 +650,42 @@ class RealDataIngestor:
                     counts['mapping_links']+=len(record['matches'])
                 stats[kind]=counts
             certification_status_changes=catalog_details.refresh_certification_status(conn)
-            vector_result=vector_index.embed(conn,client=embedding_client) if embed else vector_index.status(conn)
+            from src.database.ingestion.catalog_finalization import finalize_catalog
+            vector_result,validation=finalize_catalog(conn,embed=embed,embedding_client=embedding_client)
             return {'status':'PARTIAL' if batch['failures'] or not batch.get('collection_complete',False) else 'SUCCESS','tables':stats,
                     'sources':batch['sources'],'skipped':batch['failures'], 'vectors':vector_result,
-                    'certification_status_changes':certification_status_changes,
+                    'validation':validation,'certification_status_changes':certification_status_changes,
                     'quality':batch.get('quality',{}),'selection':batch.get('selection',{}),'collection_complete':batch.get('collection_complete',False),
                     'skills_changed':False,'regulations_changed':False,'user_data_changed':False,
                     'vector_scope':'six-resource canonical vector index with source FKs; stable source IDs preserved',
                     'database_changes':True,'original_embedding_columns_changed':False}
 
-    def execute_full_pipeline(self,*,dry_run=False,max_pages=None,allow_partial=False,skip_embeddings=False,db_env='SUPABASE_DB_URL'):
+    def execute_full_pipeline(self,*,dry_run=False,max_pages=None,allow_partial=False,skip_embeddings=False,db_env='SUPABASE_DB_URL',reset_catalog=False):
         with deployment.connect(db_env) as conn:
             conn.execute('SET TRANSACTION READ ONLY')
             skills=conn.execute('SELECT skill_id,name,category FROM public.skill_tags ORDER BY skill_id').fetchall()
+        # Validate the AI key before clearing data; reset is committed before any collection.
+        self._ai_filter=AICatalogFilter(skills,client=self.ai_client)
+        reset_result=None
+        if reset_catalog and not dry_run:
+            from datetime import datetime, timezone
+            import uuid
+            from src.database.local_runtime import backup, DATA
+            from src.database.catalog_reset import reset_skill_catalogs
+            if db_env!='SUPABASE_DB_URL':raise ValueError('자동 초기화는 기본 로컬 DB에서만 지원합니다. 원격 DB는 --incremental을 사용하세요.')
+            backup_path=PROJECT_ROOT/'data/local_db'/('before_skill_reset_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:8]+'.dump')
+            backup_result=backup(backup_path)
+            with deployment.connect(db_env) as conn:
+                if conn.info.host not in ('localhost','127.0.0.1','::1'):
+                    raise ValueError('자동 초기화는 로컬 DB만 허용합니다.')
+                if Path(conn.execute('SHOW data_directory').fetchone()['data_directory']).resolve()!=DATA.resolve():
+                    raise ValueError('예상한 로컬 DB가 아닙니다.')
+                reset_result=reset_skill_catalogs(conn)
+            logging.getLogger('LOAD_DATA').info('스킬 관련 자료 초기화 완료. 이제 수집·AI 심사를 시작합니다.')
         batch=self.collect(skills,max_pages=max_pages)
         if batch['failures'] and not dry_run and not allow_partial:
-            return {'status':'FAILED','error_type':'SourceError','database_changes':False,
-                    'embedding_api_called':False,'message':'수집 실패로 저장을 시작하지 않았습니다. failures와 sources를 확인하세요.',
+            return {'status':'FAILED','error_type':'SourceError','database_changes':bool(reset_result),
+                    'embedding_api_called':False,'message':'수집에 실패했습니다. 초기화 모드라면 스킬 자료는 비워진 상태입니다. 재실행하거나 초기화 전 백업을 복원하세요.',
                     'counts':{k:len(v) for k,v in batch['rows'].items()},
                     'failures':batch['failures'],'sources':batch['sources'],
                     'quality':batch.get('quality',{}),'selection':batch.get('selection',{}),
@@ -635,6 +708,9 @@ class RealDataIngestor:
                     # nextval never moves backwards; do not lower a sequence already ahead of max(id).
                     current=conn.execute('SELECT nextval(%s::regclass) AS id',(seq,)).fetchone()['id']
                     if top and current<top:conn.execute('SELECT setval(%s::regclass,%s,true)',(seq,top))
+        if reset_result is not None:
+            result['reset']=reset_result
+            result['backup']=backup_result['backup']
         return result
 
     def clear_all_tables(self):

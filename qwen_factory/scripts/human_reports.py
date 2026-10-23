@@ -214,6 +214,8 @@ def render(root, weight, group):
              "AI 모델: "+ai['model'],"AI 평가 기준: "+ai_evaluation.RUBRIC_VERSION,"각 입력을 동일 비중으로 평균하며 미평가·판단 불가 점수는 제외합니다. 사람과 AI 점수는 합산하지 않습니다.",""]
     for case,(path,d) in sorted(group["cases"].items()):
         rows += [f"## 입력 {case+1}","","### 입력","","```json",json.dumps(d["messages"],ensure_ascii=False,indent=2),"```",""]
+        from practical_reports import render as render_practical_report
+        rows += ["### 실전 학습 보고서", "", render_practical_report(d), ""]
         if d.get("reference_unreviewed") is not None:
             rows += ["### 고정 기준 답변 · 전수 의미 검수 미완료","",d["reference_unreviewed"],""]
         for key,name in (("base","기본 모델"),("tuned","어댑터 적용")):

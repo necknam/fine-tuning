@@ -1,5 +1,8 @@
 # GrowPath DB · Qwen Factory
 
+시트·DB의 변경 이유와 적용 상태는 [시트_DB_변경점.md](시트_DB_변경점.md)에 기록합니다. 로컬 반영과 Cloud 배포 상태를 구분합니다.
+
+
 PostgreSQL 관리와 파인튜닝 실험을 관리하는 저장소다.
 
 ```text

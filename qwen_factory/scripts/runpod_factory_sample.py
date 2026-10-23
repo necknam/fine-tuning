@@ -112,14 +112,15 @@ def check_settings(cfg):
         raise ValueError("Production requires final_assistant_only loss")
     recipe = cfg["experiments"][0]
     t, q, lora, cp = recipe["training"], cfg["quantization"], recipe["lora"], recipe["checkpoints"]
-    if t["num_train_epochs"] != 5 or sorted(recipe["artifacts"]["save_epochs"]) != [4, 5]:
-        raise ValueError("This workflow requires 5 epochs and save_epochs [4, 5]")
+    epochs=t['num_train_epochs'];saved=recipe['artifacts']['save_epochs']
+    if type(epochs) is not int or not 1<=epochs<=50 or not saved or any(type(x)is not int or not 1<=x<=epochs for x in saved) or len(saved)!=len(set(saved)):
+        raise ValueError('Invalid epoch/save plan')
     if t["packing"] or not t["bf16"] or type(t["gradient_checkpointing"]) is not bool or t["eval_strategy"] != "epoch":
         raise ValueError("Expected packing=false, bf16=true, boolean gradient_checkpointing, eval_strategy=epoch")
     if not t["gradient_checkpointing"] and t["per_device_train_batch_size"] != 1:
         raise ValueError("Disabling activation checkpointing is validated only with GPU batch 1; larger batches exhausted A100 memory")
-    if not q["load_in_4bit"] or q["bnb_4bit_compute_dtype"] != "bfloat16":
-        raise ValueError("Expected 4-bit BF16 QLoRA")
+    if type(q.get('load_in_4bit')) is not bool or q["bnb_4bit_compute_dtype"] != "bfloat16":
+        raise ValueError("Expected an explicit BF16 LoRA/QLoRA mode")
     if lora["scope"] != "language_model" or lora["target_modules"] != "all-linear" or lora["bias"] != "none":
         raise ValueError("Expected language_model/all-linear LoRA with bias=none")
     if cp["save_strategy"] != "steps" or cp["save_only_model"] or cp["save_total_limit"] < 2:
@@ -178,24 +179,29 @@ def train(root, cfg, config_path, plan, record, engine, lease, api, repo_id, arg
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise ValueError("Exactly one visible CUDA GPU required")
     gpu = torch.cuda.get_device_properties(0)
-    if "A100" not in gpu.name or gpu.total_memory < 75 * 2**30 or not torch.cuda.is_bf16_supported():
-        raise ValueError("A100 80GB with BF16 required")
-    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'}: train={len(training)} validation={len(validation)}; epochs=5; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
+    if gpu.total_memory < 75 * 2**30 or not torch.cuda.is_bf16_supported():
+        raise ValueError("A single BF16-capable GPU with at least 75GiB is required; actual memory fit still needs measurement")
+    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'}: train={len(training)} validation={len(validation)}; epochs={t['num_train_epochs']}; effective_batch={t['per_device_train_batch_size'] * t['gradient_accumulation_steps']}", flush=True)
     print("Loss policy: "+loss_policy+"; "+("synthetic integration test." if sample_mode(cfg) else "production dataset; assess quality using held-out answers."), flush=True)
     if not output.exists():
         output.mkdir(parents=True, exist_ok=False)
         (output / "runtime_manifest.json").write_text(json.dumps(runtime, indent=2), encoding="utf-8")
         (output / "config.yaml").write_bytes(config_path.read_bytes())
     q = cfg["quantization"]
-    model = AutoModelForImageTextToText.from_pretrained(cfg["model"]["base_model_id"],
-        quantization_config=BitsAndBytesConfig(load_in_4bit=True,
-            bnb_4bit_quant_type=q["bnb_4bit_quant_type"], bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=q["bnb_4bit_use_double_quant"]),
-        device_map={"": 0}, dtype=torch.bfloat16, attn_implementation="sdpa", **common)
-    model.config.use_cache = False
-    model.config.text_config.use_cache = False
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=t["gradient_checkpointing"],
-        gradient_checkpointing_kwargs={"use_reentrant": False})
+    load_kwargs={}
+    if q['load_in_4bit']:
+        load_kwargs['quantization_config']=BitsAndBytesConfig(load_in_4bit=True,
+            bnb_4bit_quant_type=q['bnb_4bit_quant_type'],bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=q['bnb_4bit_use_double_quant'])
+    model=AutoModelForImageTextToText.from_pretrained(cfg['model']['base_model_id'],
+        device_map={'':0},dtype=torch.bfloat16,attn_implementation='sdpa',**load_kwargs,**common)
+    model.config.use_cache=False
+    model.config.text_config.use_cache=False
+    if q['load_in_4bit']:
+        model=prepare_model_for_kbit_training(model,use_gradient_checkpointing=t['gradient_checkpointing'],
+            gradient_checkpointing_kwargs={'use_reentrant':False})
+    elif t['gradient_checkpointing']:
+        model.enable_input_require_grads()
     targets = [name for name, module in model.named_modules()
         if "language_model" in name.split(".") and isinstance(module, (torch.nn.Linear, bnb.nn.Linear4bit))
         and not name.endswith("lm_head")]
@@ -309,7 +315,7 @@ def main():
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8-sig"))
     check_settings(cfg)
     plan = build_plans(root, config_path, sample_mode(cfg))[0]
-    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'} plan hash={plan['config_hash']}; epochs=5; snapshots=[4, 5]", flush=True)
+    print(f"{'SAMPLE' if sample_mode(cfg) else 'PRODUCTION'} plan hash={plan['config_hash']}; epochs={cfg['experiments'][0]['training']['num_train_epochs']}; snapshots={cfg['experiments'][0]['artifacts']['save_epochs']}", flush=True)
     if not (args.check_connections or args.execute or args.sync_only):
         print("PREVIEW: no database connection, download, training or upload.")
         return
@@ -331,7 +337,7 @@ def main():
         if record["is_sample"] != sample_mode(cfg):
             raise ValueError("Registered run dataset mode differs from this request")
         rows = artifact_rows(engine, record["run_id"])
-        if {row["trained_epoch"] for row in rows} != {4, 5}:
+        if {row["trained_epoch"] for row in rows} != set(cfg["experiments"][0]["artifacts"]["save_epochs"]):
             raise ValueError("Expected registered epoch-4 and epoch-5 artifacts")
         print(f"RUN {record['run_id']} status={record['status']}")
         for row in rows:

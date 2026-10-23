@@ -44,6 +44,8 @@ def save_report(output, result, write_markdown=True):
     output.mkdir(parents=True, exist_ok=False)
     (output / "comparison.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if not write_markdown:return
+    from practical_reports import render as render_practical_report
+    (output/'practical_report.md').write_text(render_practical_report(result),encoding='utf-8')
     sections = ["# GrowPath · 간이 어댑터 재로드 비교", "",
         "> 고정 입력의 기본 모델·어댑터 답변입니다. 품질 점수는 Streamlit에서 사람이 별도로 평가합니다.", "",
         f"- 기본 모델: {result['model']['base_model_id']}",

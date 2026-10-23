@@ -16,7 +16,7 @@ TERMS = {
  '머신러닝 지도/비지도 학습': [r'machine learning', r'머신\s*러닝', r'기계\s*학습', r'신경\s*회로망'],
  '딥러닝 신경망 아키텍처': [r'deep learning', r'딥\s*러닝', r'합성곱\s*신경망', r'순환\s*신경망', r'convolutional neural'],
  '자연어 처리(NLP) & LLM 기초': [r'자연어\s*처리', r'natural language', r'large language model'],
- 'RAG & 생성형 AI 에이전트': [r'retrieval.augmented', r'검색\s*증강', r'generative ai'],
+ 'RAG & 생성형 AI 에이전트': [r'retrieval.augmented', r'검색\s*증강', r'generative ai', r'프롬프트', r'prompt\s*engineering', r'업무\s*자동화', r'AI\s*에이전트', r'ChatGPT', r'챗\s*지피티', r'Copilot', r'코파일럿', r'Gemini', r'제미나이', r'Claude', r'클로드'],
  '컴퓨터 비전(CV) 모델링': [r'컴퓨터\s*비전', r'computer vision', r'이미지\s*(분류|인식|처리)', r'object detection', r'opencv'],
  '리눅스 환경 및 Bash 스크립팅': [r'\blinux\b', r'\bbash\b', r'리눅스'],
  '클라우드 컴퓨팅 아키텍처 (AWS/Azure)': [r'클라우드\s*(컴퓨팅|아키텍처)', r'cloud architecture', r'클라우드\s*(시스템|인프라|엔지니어)', r'cloud infrastructure'],

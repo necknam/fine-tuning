@@ -28,13 +28,26 @@ def run_control(command):
             timeout=45,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
     return p.returncode
 
+
+def data_directory(conn):
+    # PostgreSQL on Windows can return its OS path in the ANSI code page even
+    # when database text is UTF-8. Fetch bytes without a UTF-8 text loader.
+    hex_path = conn.execute("SELECT encode(pg_catalog.textsend(current_setting('data_directory')), 'hex') AS path_hex").fetchone()['path_hex']
+    raw = bytes.fromhex(hex_path)
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        if os.name != 'nt': raise
+        return raw.decode('mbcs')
+
+
 def status():
     running=run_control('status')==0
     result={'running':running,'docker_required':False,'data_directory':str(DATA)}
     if running:
         with connect('SUPABASE_DB_URL') as c:
             c.execute('SET TRANSACTION READ ONLY')
-            actual=c.execute('SHOW data_directory').fetchone()['data_directory']
+            actual=data_directory(c)
             if Path(actual).resolve()!=DATA.resolve():raise ValueError('Application points at another PostgreSQL instance.')
             result.update(database=c.info.dbname,host=c.info.host,port=c.info.port,
                           server_version=c.execute('SHOW server_version').fetchone()['server_version'])
@@ -44,7 +57,7 @@ def backup(output):
     output=output.resolve()
     if output.exists():raise ValueError('Backup destination exists; not overwriting.')
     with connect('SUPABASE_DB_URL') as c:
-        if Path(c.execute('SHOW data_directory').fetchone()['data_directory']).resolve()!=DATA.resolve():
+        if Path(data_directory(c)).resolve()!=DATA.resolve():
             raise ValueError('Refusing to back up an unexpected database.')
     params=conninfo_to_dict(os.environ['SUPABASE_DB_URL']);env=os.environ.copy()
     for key,field in [('PGHOST','host'),('PGPORT','port'),('PGUSER','user'),('PGPASSWORD','password'),('PGDATABASE','dbname')]:
