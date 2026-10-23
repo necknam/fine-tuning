@@ -875,7 +875,7 @@ with review_tab:
                 names[weight]=recipe.get("recipe_name",m["run_id"][:8])
                 summary=human_reports.case_summary(ROOT,weight,group)
                 ai_summary=ai_evaluation.group_summary(ROOT,weight,group)
-                records.append({"구분":"샘플 시험" if m.get("is_sample",True) else "실제 학습","보고서":human_reports.title(ROOT,weight,group),"실험":names[weight],
+                records.append({"구분":"샘플 시험" if m.get("is_sample") is True else "실제 학습" if m.get("is_sample") is False else "기존 결과 · 구분 미기록","보고서":human_reports.title(ROOT,weight,group),"실험":names[weight],
                     "모델":m["model"]["base_model_id"],"에포크":m["trained_epoch"],
                     "학습률":recipe.get("training",{}).get("learning_rate"),"LoRA r":recipe.get("lora",{}).get("r"),
                     "생성된 답변":summary["total"],"사람 평가":f"{summary['rated']}/{summary['total']}","사람 평균":round(summary["average"],2) if summary["average"] is not None else None,"AI 평가":f"{ai_summary['rated']}/{ai_summary['total']}","AI 평균":round(ai_summary["average"],2) if ai_summary["average"] is not None else None,"가중치 ID":weight})
@@ -914,8 +914,8 @@ with review_tab:
                     except Exception as error:
                         st.error(redact(str(error)))
             latest_report=max(row[1]["created_at"] for row in group["cases"].values())
-            st.info("샘플 시험 결과 · 실제 데이터 학습 결과와 구분됩니다." if manifest.get("is_sample",True) else "실제 데이터 학습 결과")
-            st.caption("실행 ID: "+manifest["run_id"][:8]+" · 마지막 답변 생성: "+datetime.fromisoformat(latest_report).astimezone(timezone(timedelta(hours=9))).strftime("%m/%d %H:%M 한국 시간"))
+            st.info("샘플 시험 결과 · 실제 데이터 학습 결과와 구분됩니다." if manifest.get("is_sample") is True else "실제 데이터 학습 결과" if manifest.get("is_sample") is False else "기존 저장 결과 · 학습 구분은 원본 기록 확인 필요")
+            st.caption("실행 ID: "+manifest["run_id"][:8]+" · 마지막 답변 생성: "+(datetime.fromisoformat(latest_report).astimezone(timezone(timedelta(hours=9))).strftime("%m/%d %H:%M 한국 시간") if latest_report else "원본에 시각 미기록"))
             expected=max((row[1].get("evaluation_total",0) for row in group["cases"].values()),default=0)
             if expected and summary["total"]<expected:
                 st.info(f"답변 생성·수신 중: {summary['total']}/{expected}개. 아직 모든 입력의 답변이 들어오지 않았습니다.")

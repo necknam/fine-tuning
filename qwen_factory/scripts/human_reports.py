@@ -41,6 +41,13 @@ def catalog(root, precision=None, cohort="report"):
     reports=[]
     for path in sorted((root/"reports").glob(pattern)):
         report = json.loads(path.read_text(encoding="utf-8"))
+        # Historical B200 JSON omitted timestamps/model metadata; enrich only in memory.
+        if not report.get("created_at"):
+            report["created_at"]=""
+            report["timestamp_status"]="not_recorded"
+        saved_manifest=report.setdefault("factory_manifest",{})
+        if not saved_manifest.get("model") and report.get("model"):
+            saved_manifest["model"]=report["model"]
         q=report.get("quantization",{})
         if precision=="bf16" and not (q.get("load_in_4bit") is False and q.get("dtype")=="bfloat16"):
             continue
@@ -51,7 +58,7 @@ def catalog(root, precision=None, cohort="report"):
         if weight:
             reports.append((path,report,manifest,weight))
     def conditions(report):
-        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort")},sort_keys=True)
+        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort","packages","inference_runtime","inference_batch_size")},sort_keys=True)
     latest_sets={}
     for path,report,manifest,weight in reports:
         if weight not in latest_sets or report["created_at"]>latest_sets[weight][0]:
