@@ -18,7 +18,10 @@ def main():
     parser.add_argument("--resume-existing", action="store_true")
     parser.add_argument("--evaluate-only", action="store_true", help="Use uploaded adapters without invoking training")
     parser.add_argument("--case-limit", type=int, help="Limit cases per epoch for a GPU verification run")
+    parser.add_argument("--train-save-only", action="store_true", help="Train/upload weights and export frozen local-evaluation bundle without generating answers")
     args = parser.parse_args()
+    if args.train_save_only and args.evaluate_only:
+        parser.error("train-save-only cannot be combined with evaluate-only")
     root = Path(__file__).resolve().parents[1]
     load_dotenv(root/".env")
     config = (root/args.config).resolve()
@@ -64,6 +67,11 @@ def main():
     expected_epochs=set(cfg['experiments'][0]['artifacts']['save_epochs'])
     if len(snapshots)!=len(expected_epochs) or {snapshot['trained_epoch'] for snapshot in snapshots}!=expected_epochs:
         raise ValueError("Saved artifacts differ from the registered epoch plan")
+    if args.train_save_only:
+        from local_evaluation_bundle import export_bundle
+        receipt = export_bundle(root, cfg, plan, run_id, snapshots, output)
+        print("TRAIN_SAVE_ONLY COMPLETE: " + json.dumps(receipt), flush=True)
+        return
     if os.environ.get('QF_LINEAR_ATTENTION_BACKEND'):
         from model_runtime import configure
         configure(cfg)
