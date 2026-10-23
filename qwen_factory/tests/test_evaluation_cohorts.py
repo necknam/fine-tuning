@@ -26,7 +26,7 @@ class EvaluationCohortTests(unittest.TestCase):
                 'test_file':'data/eval/prompts.app_v1.jsonl','heldout_test_file':'data/production/test.jsonl',
                 'heldout_sha256':hashlib.sha256((data/'test.jsonl').read_bytes()).hexdigest()},
                 'evaluation':{'mode':'shared_fixed_10','expected_count':10,'file':'data/eval/prompts.app_v1.jsonl','sha256':hashlib.sha256(fixed.read_bytes()).hexdigest()}}
-            sent={};client=SimpleNamespace(contents=lambda *a:None,ensure_file=lambda name,text:sent.__setitem__(name,text))
+            sent={};client=SimpleNamespace(contents=lambda name,text:sent.__setitem__(name,text),ensure_file=lambda name,text:sent.__setitem__(name,text))
             env={'ROOT':root,'connection':lambda:client,'sample_mode':sample_mode,'report_input_info':report_input_info,
                  'hashlib':hashlib,'json':json,'yaml':yaml,'dashboard_store':SimpleNamespace(persist=lambda *a:None)}
             exec(compile(ast.Module(body=[publish],type_ignores=[]),'publish-test','exec'),env)
