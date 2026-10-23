@@ -7,7 +7,7 @@ from runpod_client import RunPodClient
 
 SERVICE_FILES = ('app_settings.py','dashboard_store.py','human_reports.py',
                  'ai_evaluation.py','runpod_service.py','db_registry.py','prepare_data.py',
-                 'runpod_bridge.py','control_pipeline.py','compare_factory_sample.py',
+                 'runpod_bridge.py','control_pipeline.py','compare_factory_sample.py','inference_identity.py','local_evaluation_bundle.py',
                  'runpod_factory_sample.py','factory_state.py','runpod_client.py','recovery.py','cloud_evidence.py','cloud_evaluation.py','cloud_employee_context.py','practical_reports.py')
 
 def reconnect(root, state, force=False):

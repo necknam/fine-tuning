@@ -139,9 +139,8 @@ def main():
     if manifest.get("is_sample") is not sample_mode(cfg):
         raise ValueError("Sample/production adapter does not match this experiment")
     if cfg.get('experiment_id') or not sample_mode(cfg):
-        plan=build_plans(root,config_path,sample_mode(cfg))[0]
-        if manifest['config_hash']!=plan['config_hash']:
-            raise ValueError("Adapter belongs to different training data or experiment")
+        from inference_identity import validate as validate_training_identity
+        validate_training_identity(root,config_path,cfg,manifest,runtime,adapter.parent.parent)
     if manifest["model"] != cfg["model"] or runtime["model"] != cfg["model"]:
         raise ValueError("Base model/revision differs from training")
     if manifest["config_hash"] != runtime["config_hash"]:

@@ -373,7 +373,7 @@ with st.sidebar:
         try:
             client = RunPodClient(url, token, remote)
             client.connect()
-            for name in ("runpod_bridge.py", "control_pipeline.py", "model_runtime.py", "runtime_migration.py", "compare_factory_sample.py", "db_registry.py", "runpod_factory_sample.py", "prepare_data.py", "factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
+            for name in ("runpod_bridge.py", "control_pipeline.py", "model_runtime.py", "runtime_migration.py","inference_identity.py","local_evaluation_bundle.py", "compare_factory_sample.py", "db_registry.py", "runpod_factory_sample.py", "prepare_data.py", "factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
                 client.contents("scripts/"+name, (ROOT / "scripts" / name).read_text(encoding="utf-8"))
             st.session_state.client = client
             st.session_state["_poll_requested"]=True
@@ -454,7 +454,7 @@ def pull_reports(client, overview):
 
 def publish(cfg):
     c=connection()
-    for name in ("control_pipeline.py","model_runtime.py","runtime_migration.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
+    for name in ("control_pipeline.py","model_runtime.py","runtime_migration.py","inference_identity.py","local_evaluation_bundle.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
         c.contents("scripts/"+name,(ROOT/"scripts"/name).read_text(encoding="utf-8"))
     is_sample=sample_mode(cfg)
     prefix="data/sample" if is_sample else "data/production"
@@ -925,7 +925,7 @@ with review_tab:
                 if st.button("기존 가중치 BF16 답변 생성",key="bf16_existing_"+manifest["run_id"]):
                     try:
                         c=connection()
-                        for name in ("control_pipeline.py","model_runtime.py","runtime_migration.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
+                        for name in ("control_pipeline.py","model_runtime.py","runtime_migration.py","inference_identity.py","local_evaluation_bundle.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
                             c.contents("scripts/"+name,(ROOT/"scripts"/name).read_text(encoding="utf-8"))
                         cfg_path=ROOT/"reports/run_configs"/(manifest["run_id"]+".yaml")
                         config_name="configs/control_bf16_"+manifest["run_id"]+".yaml"
