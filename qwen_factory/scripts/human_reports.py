@@ -207,6 +207,8 @@ def render(root, weight, group):
           f"- run_id: {m['run_id']}",f"- weight_id: {weight}",f"- 저장 에포크: {m['trained_epoch']}",
           "- 평균: 각 입력의 최신 휴먼 점수를 입력별 동일 비중으로 평균; 미평가 입력 제외", "",
           "## 학습 파라미터", ""]
+    from report_parameters import summary as parameter_summary
+    rows += ["| 파라미터 | 실제 설정 |","| --- | --- |",*[f"| {k} | {v} |" for k,v in parameter_summary(cfg,m).items()],""]
     rows += ["```yaml",yaml.safe_dump(cfg,allow_unicode=True,sort_keys=False),"```",""] if cfg else ["실제 실행 설정을 아직 가져오지 않았습니다.",""]
     rows += ["## 휴먼 평가",""]
     summary=case_summary(root,weight,group)

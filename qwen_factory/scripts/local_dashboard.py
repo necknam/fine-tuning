@@ -893,12 +893,14 @@ with review_tab:
                 config=ROOT/"reports/run_configs"/(m["run_id"]+".yaml")
                 cfg=yaml.safe_load(config.read_text(encoding="utf-8")) if config.exists() else {}
                 recipe=cfg.get("experiments",[{}])[0]
-                names[weight]=recipe.get("recipe_name",m["run_id"][:8])
+                from report_parameters import summary as parameter_summary
+                parameters=parameter_summary(cfg,m)
+                names[weight]=parameters["실험"]
                 summary=human_reports.case_summary(ROOT,weight,group)
                 ai_summary=ai_evaluation.group_summary(ROOT,weight,group)
                 records.append({"구분":"샘플 시험" if m.get("is_sample") is True else "실제 학습" if m.get("is_sample") is False else "기존 결과 · 구분 미기록","보고서":human_reports.title(ROOT,weight,group),"실험":names[weight],
                     "모델":m["model"]["base_model_id"],"에포크":m["trained_epoch"],
-                    "학습률":recipe.get("training",{}).get("learning_rate"),"LoRA r":recipe.get("lora",{}).get("r"),
+                    **{k:parameters[k] for k in ("학습률","LoRA r","LoRA α","Dropout","배치","누적","최대 토큰","정밀도")},
                     "생성된 답변":summary["total"],"사람 평가":f"{summary['rated']}/{summary['total']}","사람 평균":round(summary["average"],2) if summary["average"] is not None else None,"AI 평가":f"{ai_summary['rated']}/{ai_summary['total']}","AI 평균":round(ai_summary["average"],2) if ai_summary["average"] is not None else None,"가중치 ID":weight})
             with st.container(border=True,key="report_library"):
                 st.subheader("① 보고서 목록")
@@ -958,18 +960,18 @@ with review_tab:
                 st.progress(summary["rated"]/summary["total"] if summary["total"] else 0)
                 if summary["rated"]<summary["total"] and summary["rated"]:
                     st.caption("현재는 평가한 입력만 반영한 임시 평균입니다.")
-                with st.expander("모델·학습 파라미터"):
+                with st.expander("모델·학습 파라미터 · 저장된 실행 설정 기준",expanded=True):
                     config=ROOT/"reports/run_configs"/(manifest["run_id"]+".yaml")
                     if config.exists():
                         cfg=yaml.safe_load(config.read_text(encoding="utf-8"))
                         recipe=cfg["experiments"][0]
-                        st.dataframe([{"항목":k,"값":str(v)} for k,v in {**recipe["lora"],**recipe["training"]}.items()],hide_index=True)
+                        st.dataframe([{"항목":k,"값":str(v)} for k,v in parameter_summary(cfg,manifest).items()],hide_index=True,width="stretch")
                     st.caption("weight_id: "+weight)
             @st.fragment
             def show_ai_summary():
                 dashboard_auth.checkpoint(ROOT)
                 with st.container(border=True,key="ai_report_summary"):
-                    st.subheader("AI 보조 평가 결과 · OpenAI")
+                    st.subheader("AI 보조 평가 결과 · Codex 직접 검토")
                     _,judge_model=ai_evaluation.settings(ROOT)
                     ai_entries=[]
                     for case_number,(_,case_report) in sorted(group["cases"].items()):
