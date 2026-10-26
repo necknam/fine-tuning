@@ -1,3 +1,22 @@
+# 최신 인계 · 보고서 생성 기준 컴퓨터
+
+2026-10-26 사용자 확인: **현재 이 컴퓨터가 보고서를 생성·갱신하는 기준 컴퓨터다.**
+
+- 기준 프로젝트: `C:/final_team2/project` / 팩토리: `qwen_factory`.
+- 기존 보고서만 갱신: `docs/GrowPath_파인튜닝_데이터_작업보고서.html`. 새 보고서를 늘리지 않는다.
+- 실제 입력·원본/학습 답변: `qwen_factory/reports/smoke_compare_B200_epoch{2~5}_*/comparison.json`, 에폭별 10건 총 40건. 실행 ID·에폭·평가 해시가 일치하는 자료만 사용한다.
+- B200 P01은 수정 1,500건 전체·BF16 LoRA·학습률 0.0001로 2~5에폭 학습 및 비교를 완료했다. 별도 검증 분할은 없다. 2에폭 종료 후 optimizer/scheduler를 재시작한 3~5에폭 구간이므로 단일5에폭 스케줄과 구분한다.
+- 2~5에폭 실제 답변 검토·보고서 반영 완료. 각 `outputs/B200_P01_epochN/backup_verified.json`과 어댑터 파일이 로컬에 존재한다. 이 기록은 어댑터 백업이며 optimizer/RNG까지 로컬 보존됐다는 뜻은 아니다.
+- 최종 후보는 **2에폭과 5에폭**만 유지한다. 이유와 한계, 3·4에폭 제외 이유는 기존 HTML 보고서의 `b200-final-candidates`에 기록했다. 최종 에폭은 사용자 결정 전이며 P02~P25를 시작하지 않는다.
+- Streamlit은 `qwen_factory/streamlit_app.py` → `scripts/current_experiment_dashboard.py`에서 저장된 실제 결과 `dashboard/current_b200.json`을 표시한다. 입력 유형·간략 설명과 학습 데이터1,500건 정보 탭을 추가했다. Neon DB 실시간 연동은 이번 작업 범위에서 제외됐으며 완료라고 표시하지 않는다.
+- 원격 main에 `8a2b45e`까지 push한 사실은 확인했다. 이후 추가한 1,500건 설명 탭·보고서 가독성 정리의 최종 테스트와 추가 push, Cloud 실화면 반영 확인은 완료 증거를 다시 확인해야 한다. 이전 승인 검토 도구의 사용량 한도로 테스트 실행이 차단된 이력이 있다.
+- 배포 주소: https://fine-tuning-sqe6zc4q4p4qfczulumyue.streamlit.app/
+- 인증정보·.env·가중치는 Git에 올리지 않는다. project_v2는 push하지 않는다. 사용자 별도 지시 없이 새 GPU 작업·Pod 생성·삭제·메일 발송을 하지 않는다.
+
+아래는 과거 인계 기록이다. 진행 중·미완료라는 과거 문구를 현재 상태로 재사용하지 않는다.
+
+---
+
 # DB · 학습 데이터 · 파인튜닝 현재 상태
 
 2026-10-21 기준. 현재 확정 내용과 남은 작업만 관리한다.
