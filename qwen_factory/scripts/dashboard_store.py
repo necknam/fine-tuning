@@ -80,7 +80,7 @@ def persist(root, path):
         db.commit()
 
 def allowed(key):
-    return (key in ('reports/candidate_versions.json','reports/control_history.json') or
+    return (key in ('data/eval/prompts.app_v1.jsonl','data/eval/prompts.app_v2.jsonl') or bool(re.fullmatch(r'reports/live_cohorts/[a-zA-Z0-9_-]{1,64}\.json', key)) or bool(re.fullmatch(r'data/eval/live_[a-f0-9]{64}\.jsonl', key)) or key in ('reports/candidate_versions.json','reports/control_history.json','reports/connection_settings.json') or
         bool(re.fullmatch(r'reports/(?:smoke|heldout)_compare_[^/]+/comparison.json', key)) or
         bool(re.fullmatch(r'reports/run_configs/[^/]+\.yaml', key)) or
         bool(re.fullmatch(r'reports/human_evaluations/[^/]+\.json', key)) or
@@ -138,7 +138,7 @@ def merge_history(root, observed_jobs, observed_at=None, documents=None):
 def hydrate(root, force=False, section="all"):
     import time,hashlib,uuid
     root=Path(root).resolve()
-    if section not in ('all','history','reports'):raise ValueError('Unknown document section')
+    if section not in ('all','history','reports','connection'):raise ValueError('Unknown document section')
     state_path=root/'.cache'/('neon_sync_'+database_key(root)[:16]+'_'+section+'.json')
     try:state=json.loads(state_path.read_text(encoding='utf-8'))
     except (FileNotFoundError,ValueError):state={}
@@ -148,6 +148,7 @@ def hydrate(root, force=False, section="all"):
         query='SELECT path,md5(content) FROM documents'
         if section=='history':query+=" WHERE path='reports/control_history.json' OR path LIKE 'reports/run_configs/%'"
         elif section=='reports':query+=" WHERE path LIKE 'reports/%'"
+        elif section=='connection':query+=" WHERE path='reports/connection_settings.json'"
         metadata=db.execute(query).fetchall()
         for key,checksum in metadata:
             if not allowed(key):raise ValueError('DB 문서 경로가 올바르지 않습니다.')

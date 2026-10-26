@@ -18,7 +18,10 @@ def main():
     parser.add_argument("--resume-existing", action="store_true")
     parser.add_argument("--evaluate-only", action="store_true", help="Use uploaded adapters without invoking training")
     parser.add_argument("--case-limit", type=int, help="Limit cases per epoch for a GPU verification run")
+    parser.add_argument("--train-save-only", action="store_true", help="Train/upload weights and export frozen local-evaluation bundle without generating answers")
     args = parser.parse_args()
+    if args.train_save_only and args.evaluate_only:
+        parser.error("train-save-only cannot be combined with evaluate-only")
     root = Path(__file__).resolve().parents[1]
     load_dotenv(root/".env")
     config = (root/args.config).resolve()
@@ -44,7 +47,7 @@ def main():
             run_id = record["run_id"]
         if not args.evaluate_only:
             print("PIPELINE: train or resume", flush=True)
-            print("진행 안내: 2/3 · 모델을 불러온 뒤 학습합니다. 4·5에포크 가중치를 각각 저장하고 업로드합니다.", flush=True)
+            print("진행 안내: 2/3 · 모델을 불러온 뒤 학습합니다. 설정한 에포크의 가중치를 각각 저장하고 업로드합니다.", flush=True)
         else:
             print("PIPELINE: evaluate existing adapters",flush=True)
         output = factory_output(root,run_id,is_sample)
@@ -61,8 +64,25 @@ def main():
                          .order_by(artifacts.c.trained_epoch)).mappings()]
     finally:
         engine.dispose()
-    if len(snapshots)!=2 or {snapshot["trained_epoch"] for snapshot in snapshots}!={4,5}:
-        raise ValueError("Expected exactly the registered epoch-4 and epoch-5 artifacts")
+    expected_epochs=set(cfg['experiments'][0]['artifacts']['save_epochs'])
+    if len(snapshots)!=len(expected_epochs) or {snapshot['trained_epoch'] for snapshot in snapshots}!=expected_epochs:
+        raise ValueError("Saved artifacts differ from the registered epoch plan")
+    if args.train_save_only:
+        from local_evaluation_bundle import export_bundle
+        receipt = export_bundle(root, cfg, plan, run_id, snapshots, output)
+        print("TRAIN_SAVE_ONLY COMPLETE: " + json.dumps(receipt), flush=True)
+        return
+    if os.environ.get('QF_LINEAR_ATTENTION_BACKEND'):
+        from model_runtime import configure
+        configure(cfg)
+    if cfg.get('live_evaluation',{}).get('enabled'):
+        print('진행 안내: 학습 완료. 최신 Cloud DB 근거를 조회해 고정10개 입력을 확정합니다.',flush=True)
+        from cloud_evaluation import freeze
+        cfg,receipt=freeze(root,cfg)
+        inferred=config.with_name(config.stem+'_live_eval.yaml')
+        inferred.write_text(yaml.safe_dump(cfg,allow_unicode=True,sort_keys=False),encoding='utf-8')
+        args.config=inferred.relative_to(root).as_posix()
+        print('LIVE COHORT: '+json.dumps(receipt,ensure_ascii=False),flush=True)
     report_input_info(root,cfg)
     max_new_tokens=cfg.get('inference',{}).get('max_new_tokens',2048)
     cohorts=[('report',cfg['data'].get('test_file','data/sample/eval/test.jsonl'))]

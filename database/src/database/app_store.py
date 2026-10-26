@@ -62,7 +62,7 @@ def extend(Base):
     def _employee_profiles(self,c,employee_id=None,test_only=False):
         return c.execute("""SELECT e.employee_id,e.employee_id AS user_id,e.name,e.email,e.source_type,
             e.institution_id,e.employee_number,e.department_id,e.job_grade_id,e.job_id,e.is_department_head,
-            e.hire_date,e.department_start_date,
+            e.hire_date,e.department_start_date,e.planned_project_description,e.unlisted_certifications,
             coalesce(d.name,e.department,'') AS department,
             coalesce(g.name,e.grade,'') AS grade,coalesce(j.title,e.job_title,'') AS job_title
             FROM public.employees e LEFT JOIN public.departments d USING(department_id)
@@ -78,6 +78,33 @@ def extend(Base):
         with self.transaction() as c:
             rows=self._employee_profiles(c,user_id_value(employee_id))
             return rows[0] if rows else None
+
+    def update_employee_planned_project(self,employee_id,description):
+        """Save pre-survey context; changed input invalidates cached suggested questions."""
+        from .db_client import user_id_value
+        actor=user_id_value(employee_id)
+        if description is not None and not isinstance(description,str):
+            raise ValueError('Planned project description must be text or None')
+        description=description.strip() or None if description is not None else None
+        with self.transaction() as c:
+            row=c.execute('SELECT planned_project_description FROM public.employees WHERE employee_id=%s FOR UPDATE',(actor,)).fetchone()
+            if row is None:raise ValueError('Employee does not exist')
+            if row['planned_project_description']!=description:
+                c.execute('UPDATE public.employees SET planned_project_description=%s,updated_at=now() WHERE employee_id=%s',(description,actor))
+                c.execute('DELETE FROM public.employee_recommended_prompts WHERE employee_id=%s',(actor,))
+        return True
+
+    def update_employee_unlisted_certifications(self,employee_id,text):
+        """Preserve employee-submitted credentials without guessing a catalog ID."""
+        from .db_client import user_id_value
+        actor=user_id_value(employee_id)
+        if text is not None and not isinstance(text,str):
+            raise ValueError('Unlisted certifications must be text or None')
+        if text is not None:text=text.strip() or None
+        with self.transaction() as c:
+            row=c.execute('UPDATE public.employees SET unlisted_certifications=%s,updated_at=now() WHERE employee_id=%s RETURNING employee_id',(text,actor)).fetchone()
+            if row is None:raise ValueError('Employee does not exist')
+        return True
 
     def update_employee_dates(self,employee_id,*,hire_date,department_start_date):
         """Set both dates explicitly; None clears an unknown date. Accept date or ISO YYYY-MM-DD."""

@@ -203,6 +203,7 @@ def concise_log(text):
 
 
 def job_stage(job):
+    import re
     text=job.get("log_tail","")
     current,next_step="작업 준비","실험 등록"
     # Stage comes from observed markers; the separate duration estimate is a user-facing reference.
@@ -213,6 +214,12 @@ def job_stage(job):
             current,next_step="모델 준비·학습","가중치 저장·업로드"
         elif "Loading weights:" in line and "답변 생성" not in current:
             current,next_step="모델 불러오기","학습 진행"
+        elif ("Loading weights" not in line and re.search(r"\|\s*[1-9]\d*/\d+\s*\[",line)) or ("'loss':" in line and "'epoch':" in line):
+            current,next_step="학습 진행","지정한 에포크 저장·업로드"
+        elif "SAVED B200 EVALUATION:" in line:
+            current,next_step="기존 가중치 평가 진행","답변 생성 · 재학습 없음"
+        elif "UPLOADED epoch=2" in line:
+            current,next_step="2에포크 저장·업로드 완료","5에포크까지 학습 진행"
         elif "BF16 MODEL READY" in line:
             current,next_step="BF16 모델 준비 완료","평가 입력 답변 생성"
         elif "UPLOADED epoch=4" in line:
@@ -230,7 +237,7 @@ def job_stage(job):
         return "완료","보고서에서 답변 평가" if job.get("kind") in ("experiment","continue_experiment") else "작업 결과 확인"
     if state in ("FAILED","INTERRUPTED"):
         return "실패" if state=="FAILED" else "중단","오류 확인 후 이어하기"
-    if job.get("kind")=="evaluate_existing" and current in ("작업 준비","모델 준비·학습"):
+    if job.get("kind") in ("evaluate_existing","evaluate_saved_b200") and current in ("작업 준비","모델 준비·학습"):
         return "기존 가중치 BF16 평가 준비","답변 생성 · 재학습 없음"
     return current,next_step
 
@@ -245,18 +252,27 @@ def duration_text(seconds):
 
 def measured_training_speed(text, expected_steps):
     import re,statistics
-    samples=[]
+    points=[]
     for line in text.replace("\r","\n").splitlines():
         if "Loading weights" in line:
             continue
-        match=re.search(r"(\d+)%.*?\|\s*(\d+)/(\d+)\s*\[.*?,\s*([0-9.]+)s/it",line)
-        if match and int(match[3])==expected_steps and int(match[2])>=2 and int(match[1])<100:
-            samples.append(float(match[4]))
+        match=re.search(r"(\d+)%.*?\|\s*(\d+)/(\d+)\s*\[([0-9:]+)<",line)
+        if not match or int(match[3])!=expected_steps:
+            continue
+        parts=[int(part) for part in match[4].split(":")]
+        elapsed=sum(part*60**i for i,part in enumerate(reversed(parts)))
+        point=(int(match[2]),elapsed)
+        if not points or point!=points[-1]:
+            points.append(point)
+    # Resumed tqdm counts restored steps in its s/it average. Only actual
+    # elapsed differences between successive new steps measure current speed.
+    samples=[(later[1]-earlier[1]) for earlier,later in zip(points,points[1:])
+             if later[0]-earlier[0]==1 and later[1]>earlier[1]]
     return statistics.median(samples[-5:]) if samples else None
 
 
 def show_measured_estimate(job,started,kst):
-    import math
+    import math,re
     with st.expander("현재 학습 설정의 예상 시간 · 실측 속도 기준",expanded=True):
         config=job.get("config")
         path=ROOT/config if config else None
@@ -279,14 +295,13 @@ def show_measured_estimate(job,started,kst):
         if speed is None:
             st.info("학습 속도 측정 중 · 학습 진행 로그가 쌓이면 예상 시간이 표시됩니다.")
             return
-        target_steps=steps
+        completed=max([int(m[1]) for m in re.finditer(r"(\d+)/(\d+)\s*\[",job.get("log_tail","")) if int(m[2])==steps]+[0])
+        target_steps=max(0,steps-completed)
         seconds=target_steps*speed
-        st.metric(f"학습 {count:,}개 · {int(training['num_train_epochs'])}에포크 예상 학습 시간",duration_text(seconds))
-        if started:
-            end=datetime.fromtimestamp(started,kst)+timedelta(seconds=seconds)
-            st.caption("작업 시작 시각을 기준으로 순수 학습 시간만 더한 참고 시각: "+end.strftime("%m/%d %H:%M"))
-        st.caption(f"측정 {speed:.1f}초/스텝 × {target_steps:,}스텝 · GPU 1장 / 유효 배치 {effective}. 최근 최대 5개 학습 속도의 중앙값을 사용합니다.")
-        st.caption("현재 샘플의 처리 속도를 실제 데이터에 적용한 참고값입니다. 실제 데이터 길이가 달라지면 달라집니다. 모델 로딩·검증·저장·답변 생성 시간은 제외하며, 전체 보고서 완료 시각으로 표시하지 않습니다.")
+        st.metric(f"학습 {count:,}개 · {int(training['num_train_epochs'])}에포크 남은 예상 학습 시간",duration_text(seconds))
+        st.caption(f"로그 기준 {completed:,}/{steps:,}스텝 완료 · 남은 {target_steps:,}스텝")
+        st.caption(f"측정 {speed:.1f}초/스텝 × 남은 {target_steps:,}스텝 · GPU 1장 / 유효 배치 {effective}. 복원한 스텝을 제외하고 최근 최대 5개 스텝의 실제 경과 시간 차이 중앙값을 사용합니다.")
+        st.caption("최근 실제 학습 속도로 계산한 남은 시간입니다. 입력 길이에 따라 달라집니다. 모델 로딩·검증·저장·답변 생성 시간은 제외하며, 전체 보고서 완료 시각으로 표시하지 않습니다.")
 
 
 
@@ -341,41 +356,48 @@ with st.sidebar:
     with st.container(border=True):
         st.caption("현재 모델 · 실행 설정 기준")
         st.markdown("**"+model_settings["model"]["base_model_id"]+"**")
-        st.caption("학습: 4비트 QLoRA · 평가: 원본 BF16 + 어댑터")
+        st.caption("학습: BF16 LoRA 또는 NF4 QLoRA 선택 · 평가: 원본 BF16 + 어댑터")
     auto_ai=st.toggle("새 답변 전체 자동 AI 평가",value=False,key="auto_ai_evaluation")
     st.caption("입력·답변을 OpenAI API로 전송하며 호출 비용이 발생합니다. 이미 평가한 답변은 건너뜁니다.")
     st.header("RunPod 연결")
-    settings_path = ROOT / "configs/local_connection.json"
-    saved = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {}
-    url = st.text_input("Jupyter 주소", app_settings.get(ROOT,"RUNPOD_JUPYTER_URL",saved.get("url", "")))
+    load_view("connection")
+    settings_path = ROOT / "reports/connection_settings.json"
+    previous_settings = ROOT / "configs/local_connection.json"
+    source_settings = settings_path if settings_path.exists() else previous_settings
+    saved = json.loads(source_settings.read_text(encoding="utf-8")) if source_settings.exists() else {}
+    url = st.text_input("Jupyter 주소", saved.get("url") or app_settings.get(ROOT,"RUNPOD_JUPYTER_URL", ""))
     token = st.text_input("Jupyter 토큰 또는 비밀번호", type="password", value=app_settings.get(ROOT,"RUNPOD_JUPYTER_TOKEN", ""))
     st.caption("RunPod의 JUPYTER_PASSWORD 또는 Jupyter 로그인에 쓴 값입니다. HF 토큰·RunPod API 키와 다릅니다.")
-    remote = st.text_input("Jupyter 내 프로젝트 경로", app_settings.get(ROOT,"RUNPOD_REMOTE_PATH",saved.get("remote_path", "workspace/qwen_factory")))
+    remote = st.text_input("Jupyter 내 프로젝트 경로", saved.get("remote_path") or app_settings.get(ROOT,"RUNPOD_REMOTE_PATH", "workspace/qwen_factory"))
     if st.button("연결", type="primary"):
         try:
             client = RunPodClient(url, token, remote)
             client.connect()
-            for name in ("runpod_bridge.py", "control_pipeline.py", "compare_factory_sample.py", "db_registry.py", "runpod_factory_sample.py", "prepare_data.py", "factory_state.py"):
+            for name in ("runpod_bridge.py", "control_pipeline.py", "model_runtime.py", "runtime_migration.py","inference_identity.py","local_evaluation_bundle.py", "compare_factory_sample.py", "db_registry.py", "runpod_factory_sample.py", "prepare_data.py", "factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
                 client.contents("scripts/"+name, (ROOT / "scripts" / name).read_text(encoding="utf-8"))
             st.session_state.client = client
             st.session_state["_poll_requested"]=True
             st.session_state.pop("recovery_service_ready",None)
+            settings_path.parent.mkdir(parents=True,exist_ok=True)
             settings_path.write_text(json.dumps({"url": client.url, "remote_path": remote}, indent=2), encoding="utf-8")
+            dashboard_store.persist(ROOT,settings_path)
             st.success("연결 완료 · 토큰은 파일에 저장하지 않습니다.")
         except Exception as error:
             st.error(redact(str(error)))
     if st.session_state.get("client"):
         st.success("RunPod 제어 연결됨")
-    with st.expander("HF·Neon 인증정보"):
+    with st.expander("HF·실험 DB·실전 근거 DB 인증정보"):
         st.caption("아래 적용 버튼을 누르면 입력값을 HTTPS로 현재 RunPod 제어 커널에 전달합니다. 원격 파일에는 저장하지 않습니다.")
         hf = st.text_input("HF_TOKEN", type="password", value=app_settings.get(ROOT,"HF_TOKEN", ""))
         repo = st.text_input("HF_REPO_ID", value=app_settings.get(ROOT,"HF_REPO_ID", "Ssum-mer/qwen-factory-adapters"))
         database = st.text_input("DATABASE_URL", type="password", value=app_settings.get(ROOT,"DATABASE_URL", ""))
+        evidence_db = st.text_input("실전 근거 DB · GROWPATH_DB_URL", type="password", value=app_settings.get(ROOT,"GROWPATH_DB_URL", ""))
         if st.button("이 접속정보를 RunPod 세션에 적용"):
             try:
                 if not all((hf, repo, database)):
                     raise ValueError("세 값을 모두 입력하세요.")
                 values = {"HF_TOKEN": hf, "HF_REPO_ID": repo, "DATABASE_URL": database}
+                if evidence_db: values["GROWPATH_DB_URL"] = evidence_db
                 connection().execute("import os\nos.environ.update(" + repr(values) + ")\n"
                     "os.environ['HF_HOME']='/workspace/.cache/huggingface'\n"
                     "os.environ['PIP_CACHE_DIR']='/workspace/qwen_factory/.cache/pip'\n")
@@ -432,11 +454,12 @@ def pull_reports(client, overview):
 
 def publish(cfg):
     c=connection()
-    for name in ("control_pipeline.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py"):
+    for name in ("control_pipeline.py","model_runtime.py","runtime_migration.py","inference_identity.py","local_evaluation_bundle.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
         c.contents("scripts/"+name,(ROOT/"scripts"/name).read_text(encoding="utf-8"))
     is_sample=sample_mode(cfg)
     prefix="data/sample" if is_sample else "data/production"
     for field in ("train_file","validation_file"):
+        if not cfg["data"].get(field):continue
         path=(ROOT/cfg["data"][field]).resolve()
         path.relative_to((ROOT/prefix).resolve())
         text=path.read_text(encoding="utf-8-sig")
@@ -500,57 +523,66 @@ with experiment_tab:
     if experiment_tab.open:
         load_view("history",force=page_changed)
         st.subheader("실험 설정")
-        st.caption("등록 → 5에포크 학습 또는 재개 → 4·5에포크 저장·업로드 → 같은 평가 입력으로 답변 생성 → 보고서 저장까지 자동 진행합니다.")
+        st.caption("등록 → 선택한 에포크까지 학습 → 지정한 에포크 가중치 저장 → 고정 입력으로 답변 생성 → 보고서 저장까지 진행합니다. 이전·개선 데이터 비교는 5에포크 학습 후 2·5에포크를 평가합니다.")
         dataset_mode=st.radio("학습 데이터 구분",["production","sample"],horizontal=True,
             format_func=lambda value:"샘플 시험" if value=="sample" else "실제 데이터 학습",key="dataset_mode_v2")
         st.caption("새 실험 등록은 항상 새 실행 ID를 만듭니다. 기존 가중치 사용과 중단 실험 이어하기는 해당 보고서·실행 이력에서만 선택합니다.")
-        available_presets=[p for p in PRESETS if dataset_mode=="sample" or p[2].get("max_length",7168)>=6858]
+        production_configs={
+            '복구한 이전 원본 · 전체 1500건 · 2·5에포크 저장':'hyperparameters.restored_baseline_v1.P01.yaml',
+            '이전 분할 학습 설정 · 보관':'hyperparameters.production.pinned.yaml'}
+        if dataset_mode=='production':
+            version=st.selectbox('학습 데이터·비교 설정',list(production_configs),key='production_version_restored_v1')
+            production_config=ROOT/'configs'/production_configs[version]
+        else:production_config=ROOT/'configs/hyperparameters.production.pinned.yaml'
+        config_source=production_config if dataset_mode=='production' and production_config.is_file() else ROOT/'configs/hyperparameters.sample.pinned.yaml'
+        base=yaml.safe_load(config_source.read_text(encoding="utf-8-sig"))
+        minimum=base['data'].get('minimum_max_length',0)
+        available_presets=[p for p in PRESETS if p[2].get('max_length',base['experiments'][0]['training']['max_length'])>=minimum]
         options=[("P00","커스텀",{},"확정 기준에서 시작해 아래 값을 수정하세요.")]+available_presets
         preset=st.selectbox("파라미터 프리셋",range(len(options)),index=1,format_func=lambda i:options[i][0]+" "+options[i][1])
         pid,pname,changes,reason=options[preset]
         st.caption(reason)
-        production_config=ROOT/'configs/hyperparameters.production.pinned.yaml'
-        config_source=production_config if dataset_mode=='production' and production_config.is_file() else ROOT/'configs/hyperparameters.sample.pinned.yaml'
-        base=yaml.safe_load(config_source.read_text(encoding="utf-8-sig"))
         base["dataset_mode"]=dataset_mode
         data_ready=True
         if dataset_mode=="sample":
             st.info("샘플 시험 · 가상 학습54개 / 검증3개. 실제 학습과 가중치·보고서를 구분합니다.")
         else:
-            st.info("확정 데이터: 학습 1,200 · 검증 150 · 별도 평가 150 · 공통 비교 입력 10개. Cloud에는 파일을 직접 업로드하세요.")
-            fields=('train_file','validation_file','heldout_test_file')
+            full=base['data'].get('training_scope')=='all_1500_fixed10'
+            st.info("확정 데이터: 1,500건 전체 학습 · 고정 10개 입력 평가. 이전 데이터는 저장된 가중치를 사용합니다." if full else "기존 분할 학습 설정입니다. 전체 1,500건 학습은 복구한 이전 원본 설정을 선택하세요.")
+            fields=tuple(field for field in ('train_file','validation_file','heldout_test_file') if base['data'].get(field))
             data_ready=config_source==production_config and all((ROOT/base['data'][field]).is_file() for field in fields) and (ROOT/base['evaluation']['file']).is_file()
             with st.expander("학습·평가 데이터 준비" if not data_ready else "데이터 확인·교체",expanded=not data_ready):
-                st.caption("학습 1200 · 검증 150 · 별도 평가 150 · 공통 입력 10개. 확정한 파일을 모두 올리세요.")
+                st.caption("학습 all.jsonl 1,500건과 공통 입력 10개를 올리세요." if full else "기존 설정의 학습·검증·별도 평가·공통 입력 파일을 올리세요.")
                 left,right=st.columns(2)
                 with left:
-                    train_upload=st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train")
-                    heldout_upload=st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout")
+                    train_upload=st.file_uploader("학습 train.jsonl",type=["jsonl"],key="production_train_"+base["data"]["train_sha256"][:12])
+                    heldout_upload=st.file_uploader("별도 평가 test.jsonl",type=["jsonl"],key="production_heldout") if not full else None
                 with right:
-                    validation_upload=st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation")
-                    report_upload=st.file_uploader("공통 입력 prompts.app_v1.jsonl",type=["jsonl"],key="production_report")
-                uploads={'train':train_upload,'validation':validation_upload,'heldout':heldout_upload,'report':report_upload}
+                    validation_upload=st.file_uploader("검증 validation.jsonl",type=["jsonl"],key="production_validation") if not full else None
+                    report_upload=st.file_uploader("공통 입력 JSONL",type=["jsonl"],key="production_report")
+                uploads={'train':train_upload,'report':report_upload}
+                if not full:uploads.update(validation=validation_upload,heldout=heldout_upload)
             if any(value is not None for value in uploads.values()):
                 data_ready=False
                 if all(value is not None for value in uploads.values()):
                     try:
                         prepare_data.install_curated_uploads(ROOT,{key:value.getvalue() for key,value in uploads.items()},base)
                         data_ready=True
-                        st.success("4개 파일 해시·건수·평가 분리 확인 완료")
+                        st.success("필수 파일 해시·건수·평가 입력 확인 완료")
                     except (ValueError,UnicodeError,OSError) as error:
                         st.error("데이터를 확인하세요: "+str(error))
                 else:
-                    st.caption("평가 누락을 방지하기 위해 4개 파일을 모두 올려야 등록할 수 있습니다.")
+                    st.caption("선택한 설정에 필요한 파일을 모두 올려야 등록할 수 있습니다.")
             elif data_ready:
-                st.caption("로컬에 준비된 확정 데이터 4개를 사용합니다. 등록 시 해시를 다시 확인합니다.")
+                st.caption("준비된 확정 데이터를 사용합니다. 등록 시 해시를 다시 확인합니다.")
             else:
-                st.caption("데이터는 GitHub에 올리지 않습니다. 이 화면에서 확정 파일 4개를 직접 올리세요.")
+                st.caption("데이터는 GitHub에 올리지 않습니다. 이 화면에서 필요한 확정 파일을 직접 올리세요.")
         recipe=base["experiments"][0]
         with st.expander("현재 데이터 위치"):
             st.caption("선택한 학습/검증 파일을 내용 해시로 고정해 전송합니다. 학습 등록 후 파일 내용이 바뀌면 실행을 차단합니다.")
             st.dataframe([
                 {"구분":"학습", "파일":base["data"]["train_file"]},
-                {"구분":"검증", "파일":base["data"]["validation_file"]},
+                {"구분":"검증", "파일":base["data"].get("validation_file") or "별도 검증 분할 없음 · 전체 학습"},
                 {"구분":"평가 입력", "파일":base["data"]["test_file"]},
             ],hide_index=True)
         defaults={**recipe["training"],**recipe["lora"],**changes}
@@ -573,7 +605,7 @@ with experiment_tab:
                 batch=st.number_input("GPU 배치 크기",min_value=1,max_value=16,value=int(defaults["per_device_train_batch_size"]))
                 accumulation=st.number_input("그래디언트 누적",min_value=1,max_value=256,value=int(defaults["gradient_accumulation_steps"]))
             with c:
-                lengths=[n for n in (1024,2048,4096,7168,8192) if n>=base['data'].get('minimum_max_length',0)]
+                lengths=[n for n in (1024,2048,4096,7168,8192,10240,12288,16384) if n>=base['data'].get('minimum_max_length',0)]
                 length=st.selectbox("최대 토큰 길이",lengths,index=lengths.index(defaults["max_length"]))
                 alpha=st.number_input("LoRA alpha",min_value=1,value=int(defaults["lora_alpha"]),step=8)
             with st.expander("고급 설정 · 정규화·스케줄·평가"):
@@ -588,10 +620,26 @@ with experiment_tab:
                     checkpointing=st.checkbox("재계산으로 GPU 메모리 절약",value=bool(defaults.get("gradient_checkpointing",True)),help="긴 입력에서는 켜짐을 권장합니다. 끄기는 GPU 배치 1에서만 허용합니다.")
                     generation_batch=st.selectbox("답변 동시 생성 개수",[1,2,4,8],index=[1,2,4,8].index(base.get("inference",{}).get("batch_size",1)),help="학습 배치와 별개이며 메모리가 부족하면 1로 설정하세요.")
                     priority=st.selectbox("대기열 우선순위",[10,0,20],format_func=lambda v:{0:"높음",10:"보통",20:"낮음"}[v])
-            st.caption("5에포크 학습 · 4/5에포크 저장 · NF4/BF16 · 현재 실행 중인 작업 뒤에 등록")
+            st.caption("아래에서 에포크·저장 시점·학습 정밀도를 선택합니다. 기존 실험 설정은 변경하지 않습니다.")
+            epochs=st.number_input("학습 에포크",min_value=1,max_value=50,value=int(defaults['num_train_epochs']))
+            save_options=list(range(1,int(epochs)+1))
+            save_epochs=st.multiselect("저장·평가할 에포크",save_options,default=[e for e in recipe['artifacts']['save_epochs'] if e<=epochs] or [int(epochs)])
+            training_precision=st.selectbox("학습 정밀도",['BF16 LoRA','NF4 QLoRA'],index=1 if base['quantization']['load_in_4bit'] else 0)
             start=st.form_submit_button("새 실험 등록",type="primary",disabled=not data_ready)
         if not data_ready:
             st.caption("데이터 준비를 완료하면 등록 버튼이 활성화됩니다.")
+        live_reports=st.checkbox("학습 후 실제 DB 근거로 실전 보고서 10건 생성",value=True)
+        if live_reports:
+            from cloud_employee_context import fixed_assignment
+            case_employee_ids=fixed_assignment()
+            st.caption('테스트 직원을 고정 10개 입력에 미리 무작위 배정했습니다. 모든 가중치·에포크는 동일한 직원 정보와 근거 스냅샷을 재사용합니다.')
+            cohort_id=st.text_input("고정10개 평가 묶음 ID",value="live_test_manual_v1",key='cohort_fixed_test_manual',help="같은 ID는 가중치가 달라도 같은 입력·근거·직원 스냅샷을 재사용합니다.")
+            template=ROOT/'data/eval/prompts.app_v2.jsonl'
+            base['data']['test_file']=template.relative_to(ROOT).as_posix()
+            base['evaluation']={'mode':'shared_fixed_10','file':base['data']['test_file'],'expected_count':10,'sha256':hashlib.sha256(template.read_bytes()).hexdigest()}
+            base['live_evaluation']={'enabled':True,'cohort_id':cohort_id}
+            if case_employee_ids is not None:base['live_evaluation']['case_employee_ids']=case_employee_ids
+            st.caption("학습이 끝난 뒤 최신 로컬 DB를 복제한 Cloud 근거 DB를 조회합니다. 첫 생성 이후 이 묶음은 고정됩니다. 기존 실험의 평가 입력은 바뀌지 않습니다.")
         if start:
             try:
                 if not checkpointing and int(batch)!=1:
@@ -599,8 +647,19 @@ with experiment_tab:
                 if int(length)<base['data'].get('minimum_max_length',0):
                     raise ValueError('현재 준비된 데이터의 최대 길이보다 작습니다. 길이 제한을 늘려 주세요.')
                 base["experiment_id"]=str(uuid.uuid4())
-                base["data"]["test_file"]=evaluation_file
+                if not live_reports: base["data"]["test_file"]=evaluation_file
+                else:
+                    from cloud_evaluation import validate_batch
+                    validate_batch(cohort_id)
+                    from cloud_employee_context import validate_assignment
+                    validate_assignment(case_employee_ids)
+                    if not app_settings.get(ROOT,'GROWPATH_DB_URL') and not st.session_state.get('remote_secrets',{}).get('GROWPATH_DB_URL'):
+                        raise ValueError('실전 근거 DB 접속정보를 Cloud Secrets에 설정하거나 RunPod 세션에 적용하세요.')
                 base.setdefault('inference',{}).update(batch_size=int(generation_batch))
+                if not save_epochs:raise ValueError('저장·평가할 에포크를 한 개 이상 선택하세요.')
+                recipe['training']['num_train_epochs']=int(epochs)
+                recipe['artifacts']['save_epochs']=sorted(save_epochs)
+                base['quantization']['load_in_4bit']=training_precision=='NF4 QLoRA'
                 recipe["recipe_name"]=label
                 recipe["lora"].update(r=int(rank),lora_alpha=int(alpha),lora_dropout=float(dropout))
                 recipe["training"].update(learning_rate=float(lr),per_device_train_batch_size=int(batch),
@@ -676,7 +735,7 @@ with experiment_tab:
                 finished=[j for j in jobs if j["state"] not in ("RUNNING","QUEUED") or j.get("stale")]
                 show_all=st.checkbox("지난 실험 전체 보기",value=False)
                 for job in reversed(finished if show_all else finished[-10:]):
-                    state=("이전 연결의 마지막 확인: " if job.get("stale") else "")+{"SUCCEEDED":"완료","FAILED":"실패","INTERRUPTED":"중단"}.get(job["state"],job["state"])
+                    state=("이전 연결의 마지막 확인: " if job.get("stale") else "")+{"SUCCEEDED":"완료","FAILED":"실패","INTERRUPTED":"중단","CANCELLED":"취소됨"}.get(job["state"],job["state"])
                     with st.expander(state+" · "+(job.get("label") or job["job_id"])):
                         show_job_times(job)
                         show_job_log(job)
@@ -711,7 +770,8 @@ def case_request(report):
     users=[m["content"] for m in report["messages"] if m["role"]=="user"]
     text=users[-1] if users else ""
     parsed=parse_payload(text)
-    return parsed if isinstance(parsed,dict) else {},text
+    from practical_reports import input_view
+    return input_view(parsed),text
 
 
 def show_input(report):
@@ -836,7 +896,7 @@ with review_tab:
                 names[weight]=recipe.get("recipe_name",m["run_id"][:8])
                 summary=human_reports.case_summary(ROOT,weight,group)
                 ai_summary=ai_evaluation.group_summary(ROOT,weight,group)
-                records.append({"구분":"샘플 시험" if m.get("is_sample",True) else "실제 학습","보고서":human_reports.title(ROOT,weight,group),"실험":names[weight],
+                records.append({"구분":"샘플 시험" if m.get("is_sample") is True else "실제 학습" if m.get("is_sample") is False else "기존 결과 · 구분 미기록","보고서":human_reports.title(ROOT,weight,group),"실험":names[weight],
                     "모델":m["model"]["base_model_id"],"에포크":m["trained_epoch"],
                     "학습률":recipe.get("training",{}).get("learning_rate"),"LoRA r":recipe.get("lora",{}).get("r"),
                     "생성된 답변":summary["total"],"사람 평가":f"{summary['rated']}/{summary['total']}","사람 평균":round(summary["average"],2) if summary["average"] is not None else None,"AI 평가":f"{ai_summary['rated']}/{ai_summary['total']}","AI 평균":round(ai_summary["average"],2) if ai_summary["average"] is not None else None,"가중치 ID":weight})
@@ -861,11 +921,11 @@ with review_tab:
             if notice:
                 st.success(notice)
             with st.expander("기존 가중치로 BF16 평가 실행 · 재학습 없음"):
-                st.caption("저장된 4·5에포크 가중치로 원본 BF16 답변을 생성합니다. 에포크마다 모델을 한 번만 불러옵니다. GPU 비용이 발생합니다.")
+                st.caption("선택한 실험에 저장된 에포크 가중치로 원본 BF16 답변을 생성합니다. 에포크마다 모델을 한 번만 불러옵니다. GPU 비용이 발생합니다.")
                 if st.button("기존 가중치 BF16 답변 생성",key="bf16_existing_"+manifest["run_id"]):
                     try:
                         c=connection()
-                        for name in ("control_pipeline.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py"):
+                        for name in ("control_pipeline.py","model_runtime.py","runtime_migration.py","inference_identity.py","local_evaluation_bundle.py","compare_factory_sample.py","runpod_bridge.py","db_registry.py","runpod_factory_sample.py","prepare_data.py","factory_state.py","cloud_evidence.py","cloud_evaluation.py","cloud_employee_context.py","practical_reports.py"):
                             c.contents("scripts/"+name,(ROOT/"scripts"/name).read_text(encoding="utf-8"))
                         cfg_path=ROOT/"reports/run_configs"/(manifest["run_id"]+".yaml")
                         config_name="configs/control_bf16_"+manifest["run_id"]+".yaml"
@@ -875,8 +935,8 @@ with review_tab:
                     except Exception as error:
                         st.error(redact(str(error)))
             latest_report=max(row[1]["created_at"] for row in group["cases"].values())
-            st.info("샘플 시험 결과 · 실제 데이터 학습 결과와 구분됩니다." if manifest.get("is_sample",True) else "실제 데이터 학습 결과")
-            st.caption("실행 ID: "+manifest["run_id"][:8]+" · 마지막 답변 생성: "+datetime.fromisoformat(latest_report).astimezone(timezone(timedelta(hours=9))).strftime("%m/%d %H:%M 한국 시간"))
+            st.info("샘플 시험 결과 · 실제 데이터 학습 결과와 구분됩니다." if manifest.get("is_sample") is True else "실제 데이터 학습 결과" if manifest.get("is_sample") is False else "기존 저장 결과 · 학습 구분은 원본 기록 확인 필요")
+            st.caption("실행 ID: "+manifest["run_id"][:8]+" · 마지막 답변 생성: "+(datetime.fromisoformat(latest_report).astimezone(timezone(timedelta(hours=9))).strftime("%m/%d %H:%M 한국 시간") if latest_report else "원본에 시각 미기록"))
             expected=max((row[1].get("evaluation_total",0) for row in group["cases"].values()),default=0)
             if expected and summary["total"]<expected:
                 st.info(f"답변 생성·수신 중: {summary['total']}/{expected}개. 아직 모든 입력의 답변이 들어오지 않았습니다.")
@@ -988,7 +1048,11 @@ with review_tab:
                 show_input(report)
             with st.container(border=True,key="answer_card"):
                 st.subheader("모델 답변 · 학습 로드맵 보고서")
-                show_answer(report["tuned"])
+                from practical_reports import render as render_practical_report
+                st.markdown(render_practical_report(report,'tuned'))
+                st.download_button("실전 보고서 Markdown 내려받기",render_practical_report(report,'tuned'),file_name=f"roadmap_case_{case+1}.md",mime="text/markdown",key="practical_"+weight+"_"+str(case))
+                with st.expander("모델 구조화 응답 확인"):
+                    show_answer(report["tuned"])
             if report.get("reference_unreviewed") is not None:
                 with st.expander("고정 기준 답변 · 전문가 검수 미완료"):
                     st.code(report["reference_unreviewed"],language="json",wrap_lines=True)
@@ -1055,7 +1119,7 @@ with guide_tab:
     if guide_tab.open:
         st.subheader("파라미터 설명 · 설정할 때 참고하세요")
         st.caption("현재 실행 기준과 상세 설명을 함께 확인할 수 있습니다. 설명을 읽어도 실행 설정은 바뀌지 않습니다.")
-        guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.production.pinned.yaml').read_text(encoding='utf-8-sig'))
+        guide_config=yaml.safe_load((ROOT/'configs/hyperparameters.restored_baseline_v1.P01.yaml').read_text(encoding='utf-8-sig'))
         training=guide_config['experiments'][0]['training']
         lora=guide_config['experiments'][0]['lora']
         st.caption("확정 데이터의 기준 설정입니다. 선택한 실험에서 수정한 값은 파라미터 화면과 실행 보고서에서 확인하세요.")
@@ -1063,7 +1127,7 @@ with guide_tab:
         a.metric("학습 횟수",f"{training['num_train_epochs']} epoch")
         b.metric("유효 배치",str(training['per_device_train_batch_size']*training['gradient_accumulation_steps']))
         c.metric("최대 입력·답변 길이",f"{training['max_length']:,} 토큰")
-        st.info("이번 학습: 1,200건 학습 · 150건 검증 · 150건 별도 평가. 모든 비교에 같은 보고서 입력 10개를 사용합니다.")
+        st.info("이번 학습: 개선 데이터 1,500건 전체 · 5에포크 학습 · 2·5에포크 저장. 기존 저장 가중치와 같은 고정 10개 입력으로 비교합니다.")
         st.markdown("### 파라미터를 이해하는 순서")
         cards=[
             ("01 · 학습률",f"현재 **{training['learning_rate']:.5f}** · 한 번에 모델을 얼마나 조정할지 정합니다.",
@@ -1076,7 +1140,7 @@ with guide_tab:
              f"확정 데이터 최대 {guide_config['data']['minimum_max_length']:,}토큰을 수용합니다. 길이를 줄여 데이터를 잘라내지 않습니다. 실제 GPU 메모리 적합성은 사전 점검합니다."),
             ("05 · 정규화와 스케줄",f"현재 **dropout {lora['lora_dropout']} / weight decay {training['weight_decay']} / warmup {training['warmup_ratio']} / {training['lr_scheduler_type']}**",
              "dropout과 weight decay는 학습을 규제하고, warmup은 초기 학습률을 점진적으로 높입니다. 스케줄은 이후 학습률의 변화를 정합니다."),
-            ("06 · 학습 횟수와 비교",f"현재 **{training['num_train_epochs']} epoch · 4/5 epoch 저장 · seed {training['seed']}**",
+            ("06 · 학습 횟수와 비교",f"현재 **{training['num_train_epochs']} epoch · 2/5 epoch 저장 · seed {training['seed']}**",
              "epoch는 학습 데이터를 반복해서 보는 횟수입니다. 검증 결과와 별도 평가를 함께 보고 어댑터를 고릅니다. 더 오래 학습했다고 반드시 좋아지는 것은 아닙니다."),
         ]
         for offset in range(0,len(cards),2):
@@ -1089,7 +1153,7 @@ with guide_tab:
                         st.caption(explanation)
         st.caption("재계산(gradient checkpointing)은 GPU 메모리를 줄이기 위한 설정입니다. 답변 동시 생성 수는 학습 배치와 별개입니다. 학습 속도·성능은 실제 측정 전입니다.")
         with st.expander("파라미터 탐색 후보 25개"):
-            st.caption("샘플 기준에서 만든 탐색 후보입니다. 실제 학습 길이는 7168이며 25개를 자동으로 모두 실행하지 않습니다.")
+            st.caption("샘플 기준에서 만든 탐색 후보입니다. 비교 실험의 학습 길이는 10240이며 25개를 자동으로 모두 실행하지 않습니다.")
             st.markdown(PRESET_GUIDE_MARKDOWN)
         with st.expander("개발자용 원본 설정 JSON",expanded=False):
             st.json({'model':guide_config['model'],'lora':lora,'training':training})

@@ -76,4 +76,92 @@ class CanonicalDatabaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Column definition mismatch'):verify(self.c)
         self.assertEqual(verify(self.c)['schema_and_foreign_keys'],'pass')
 
+    def test_employee_sheet_sync_is_atomic_repeatable_and_preserves_passwords(self):
+        import csv,io
+        from src.database.sheet_sync import synchronize
+        people=self.c.execute('SELECT employee_id,name,password_hash FROM public.employees WHERE employee_id=ANY(%s) ORDER BY employee_id',([self.head,self.owner,self.other],)).fetchall()
+        for _ in range(2):
+            people.append(self.c.execute("INSERT INTO public.employees(name,email,source_type) VALUES(%s,%s,'TEST_MANUAL') RETURNING employee_id,name,password_hash",('시트 검증 직원',str(uuid4())+'@growpath.example.invalid')).fetchone())
+        rows={
+            '바꿀 계정 번호':[str(p['employee_id']) for p in people],
+            '기존 계정 이름':[p['name'] for p in people],
+            '이름':[f"시트 직원 {p['employee_id']}" for p in people],
+            '기관':['한국수자원공사']*5,'소속 부서':['AI데이터센터']*5,
+            '직급':['일반직 5급']*5,'직무':['해당 없음']*5,'직책':['일반 직원']*5,
+            '최종 학력':['학사']*5,'학교명':['시트 검증 학교']*5,
+            '입학일':['2020-03-02']*5,'졸업일':['2024-02-20']*5,
+            '보유 기술1':['없음']*5,'보유 자격1':['없음']*5,
+        }
+        def csv_text(data):
+            stream=io.StringIO();writer=csv.writer(stream)
+            for label,values in data.items():writer.writerow([label,'','']+values)
+            return stream.getvalue()
+        text=csv_text(rows)
+        synchronize(self.c,text,apply=False)
+        self.assertEqual(self.db.get_employee_profile(people[0]['employee_id'])['name'],people[0]['name'])
+        synchronize(self.c,text,apply=True)
+        synchronize(self.c,text,apply=True)
+        ids=[p['employee_id'] for p in people]
+        self.assertEqual(self.c.execute('SELECT count(*) AS n FROM public.employee_education_records WHERE employee_id=ANY(%s)',(ids,)).fetchone()['n'],5)
+        self.assertEqual(self.c.execute('SELECT employee_id,password_hash FROM public.employees WHERE employee_id=ANY(%s) ORDER BY employee_id',(ids,)).fetchall(),[{'employee_id':p['employee_id'],'password_hash':p['password_hash']} for p in sorted(people,key=lambda p:p['employee_id'])])
+        bad=copy.deepcopy(rows);bad['직무'][1]='없는 직무';bad['이름'][0]='저장되면 안 됨'
+        with self.assertRaises(ValueError):synchronize(self.c,csv_text(bad),apply=True)
+        self.assertNotEqual(self.db.get_employee_profile(people[0]['employee_id'])['name'],'저장되면 안 됨')
+
+    def test_approved_sheet_organization_is_repeatable_and_preserves_staff(self):
+        from src.database.organization_setup import ensure_sheet_organization
+        before=self.c.execute('SELECT employee_id,department_id,job_grade_id FROM public.employees ORDER BY employee_id').fetchall()
+        first=ensure_sheet_organization(self.c)
+        self.assertEqual(first,ensure_sheet_organization(self.c))
+        self.assertEqual(before,self.c.execute('SELECT employee_id,department_id,job_grade_id FROM public.employees ORDER BY employee_id').fetchall())
+        parent=self.c.execute('SELECT parent_department_id FROM public.departments WHERE department_id=%s',(first['departments']['BIZ'],)).fetchone()
+        self.assertEqual(parent['parent_department_id'],first['departments']['DIGITAL'])
+        with self.c.transaction(force_rollback=True):
+            self.c.execute('UPDATE public.departments SET name=%s WHERE department_id=%s',('충돌 이름',first['departments']['BIZ']))
+            with self.assertRaisesRegex(ValueError,'conflicts'):ensure_sheet_organization(self.c)
+
+    def test_education_dates_allow_unknown_and_reject_reversed_dates(self):
+        from datetime import date
+        data={'employee_id':self.owner,'school_name':'검증 학교','education_level':'bachelor',
+              'enrollment_date':'2020-03-02','graduation_date':None}
+        saved=self.db.table('employee_education_records').insert(data).execute().data[0]
+        record=saved['education_record_id']
+        self.assertIsNone(saved['graduation_date'])
+        self.db.table('employee_education_records').update({'graduation_date':'2024-02-20'}).eq('education_record_id',record).execute()
+        with self.assertRaises(DatabaseOperationError):
+            self.db.table('employee_education_records').update({'graduation_date':'2019-02-20'}).eq('education_record_id',record).execute()
+        row=self.c.execute('SELECT graduation_date FROM public.employee_education_records WHERE education_record_id=%s',(record,)).fetchone()
+        self.assertEqual(row['graduation_date'],date(2024,2,20))
+        self.db.table('employee_education_records').update({'enrollment_date':None,'graduation_date':None}).eq('education_record_id',record).execute()
+
+    def test_unlisted_certifications_preserve_employee_scope_and_catalog(self):
+        before=self.c.execute('SELECT count(*) AS n FROM public.certifications').fetchone()['n']
+        text='미등재 자격 / 예시 발급기관 / 취득일 미확인'
+        self.db.update_employee_unlisted_certifications(self.owner,'  '+text+'  ')
+        self.assertEqual(self.db.get_employee_profile(self.owner)['unlisted_certifications'],text)
+        self.assertIsNone(self.db.get_employee_profile(self.other)['unlisted_certifications'])
+        self.assertEqual(self.c.execute('SELECT count(*) AS n FROM public.certifications').fetchone()['n'],before)
+        self.assertIsNone(self.c.execute('SELECT 1 FROM public.employee_certifications WHERE employee_id=%s',(self.owner,)).fetchone())
+        self.db.update_employee_unlisted_certifications(self.owner,' \n ')
+        self.assertIsNone(self.db.get_employee_profile(self.owner)['unlisted_certifications'])
+        with self.assertRaises(ValueError):self.db.update_employee_unlisted_certifications(self.owner,['자격'])
+        with self.assertRaises(ValueError):self.db.update_employee_unlisted_certifications(2147483647,text)
+
+    def test_planned_project_context_invalidates_only_changed_employee_prompts(self):
+        text='현재 API 유지보수 업무에서 규정 검색 도구를 만들고 싶다.'
+        self.db.update_employee_planned_project(self.owner,text)
+        self.db.save_employee_recommended_prompts(self.owner,['규정 검색 도구를 어떻게 시작할까요?'])
+        self.db.save_employee_recommended_prompts(self.other,['다른 직원의 질문'])
+        self.db.update_employee_planned_project(self.owner,'  '+text+'  ')
+        self.assertEqual(len(self.db.get_employee_recommended_prompts(self.owner)),1)
+        self.assertEqual(self.db.get_employee_profile(self.owner)['planned_project_description'],text)
+        self.assertEqual(self.db.table('employees').select('planned_project_description').eq('employee_id',self.owner).execute().data[0]['planned_project_description'],text)
+        self.db.update_employee_planned_project(self.owner,'근거 문단을 표시하는 검색 시제품을 구현한다.')
+        self.assertEqual(self.db.get_employee_recommended_prompts(self.owner),[])
+        self.assertEqual(len(self.db.get_employee_recommended_prompts(self.other)),1)
+        self.db.update_employee_planned_project(self.owner,' \n ')
+        self.assertIsNone(self.db.get_employee_profile(self.owner)['planned_project_description'])
+        with self.assertRaises(ValueError):self.db.update_employee_planned_project(self.owner,{'text':text})
+        with self.assertRaises(ValueError):self.db.update_employee_planned_project(2147483647,text)
+
 if __name__=='__main__':unittest.main()

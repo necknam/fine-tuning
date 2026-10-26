@@ -41,6 +41,13 @@ def catalog(root, precision=None, cohort="report"):
     reports=[]
     for path in sorted((root/"reports").glob(pattern)):
         report = json.loads(path.read_text(encoding="utf-8"))
+        # Historical B200 JSON omitted timestamps/model metadata; enrich only in memory.
+        if not report.get("created_at"):
+            report["created_at"]=""
+            report["timestamp_status"]="not_recorded"
+        saved_manifest=report.setdefault("factory_manifest",{})
+        if not saved_manifest.get("model") and report.get("model"):
+            saved_manifest["model"]=report["model"]
         q=report.get("quantization",{})
         if precision=="bf16" and not (q.get("load_in_4bit") is False and q.get("dtype")=="bfloat16"):
             continue
@@ -51,7 +58,7 @@ def catalog(root, precision=None, cohort="report"):
         if weight:
             reports.append((path,report,manifest,weight))
     def conditions(report):
-        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort")},sort_keys=True)
+        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort","packages","inference_runtime","inference_batch_size")},sort_keys=True)
     latest_sets={}
     for path,report,manifest,weight in reports:
         if weight not in latest_sets or report["created_at"]>latest_sets[weight][0]:
@@ -214,6 +221,8 @@ def render(root, weight, group):
              "AI 모델: "+ai['model'],"AI 평가 기준: "+ai_evaluation.RUBRIC_VERSION,"각 입력을 동일 비중으로 평균하며 미평가·판단 불가 점수는 제외합니다. 사람과 AI 점수는 합산하지 않습니다.",""]
     for case,(path,d) in sorted(group["cases"].items()):
         rows += [f"## 입력 {case+1}","","### 입력","","```json",json.dumps(d["messages"],ensure_ascii=False,indent=2),"```",""]
+        from practical_reports import render as render_practical_report
+        rows += ["### 실전 학습 보고서", "", render_practical_report(d), ""]
         if d.get("reference_unreviewed") is not None:
             rows += ["### 고정 기준 답변 · 전수 의미 검수 미완료","",d["reference_unreviewed"],""]
         for key,name in (("base","기본 모델"),("tuned","어댑터 적용")):

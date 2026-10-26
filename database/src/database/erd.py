@@ -1,5 +1,7 @@
 """Generate a schema-only ERD from the live local database; no row content is exported."""
 import argparse,json,re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from .deployment import connect
 from .final_schema import snapshot
@@ -21,6 +23,9 @@ def render(c,template,output):
   html=source.replace('__DATA__',encoded)
  else:
   raise ValueError('ERD template has no schema metadata slot; preserve original UI')
+ # Preserve theme and UI while updating the snapshot date shown in the header.
+ today=datetime.now(ZoneInfo('Asia/Seoul')).date().isoformat()
+ html=re.sub(r'(개 · )\d{4}-\d{2}-\d{2}(?=`)',lambda m:m.group(1)+today,html)
  output.write_text(html,encoding='utf-8')
  return {'file':str(output),'tables':len(data),'foreign_keys':sum(len(s['fks']) for s in data.values())}
 

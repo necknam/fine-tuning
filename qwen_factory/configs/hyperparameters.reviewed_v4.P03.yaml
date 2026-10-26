@@ -1,0 +1,84 @@
+schema_version: 1
+model:
+  base_model_id: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+quantization:
+  load_in_4bit: false
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+data:
+  train_file: data/production/curation_1500_reviewed_v4/release/all.jsonl
+  format: messages
+  expected_train_samples: 1500
+  test_file: data/eval/prompts.app_v2.jsonl
+  loss_policy: final_assistant_only
+  train_sha256: 7fffa825b72f6cff762b7c7465b43d595314095cd77857c146bc8f612edd6cd4
+  minimum_max_length: 9230
+  training_scope: all_1500_fixed10
+experiments:
+- recipe_name: reviewed_v4_full1500_P03_epoch2_5
+  lora:
+    r: 32
+    lora_alpha: 64
+    lora_dropout: 0.05
+    bias: none
+    target_modules: all-linear
+    scope: language_model
+  training:
+    num_train_epochs: 5
+    learning_rate: 7.5e-05
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    weight_decay: 0.01
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    per_device_eval_batch_size: 1
+    max_length: 10240
+    packing: false
+    bf16: true
+    gradient_checkpointing: true
+    optim: paged_adamw_8bit
+    seed: 42
+    data_seed: 42
+    logging_steps: 1
+    eval_strategy: 'no'
+  artifacts:
+    save_epochs:
+    - 2
+    - 5
+  checkpoints:
+    save_strategy: steps
+    save_steps: 50
+    save_total_limit: 3
+    save_only_model: false
+inference:
+  batch_size: 1
+  max_new_tokens: 4096
+evaluation:
+  mode: shared_fixed_10
+  file: data/eval/prompts.app_v2.jsonl
+  expected_count: 10
+  sha256: d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac
+dataset_mode: production
+readiness:
+  token_length_verified: true
+  gpu_memory_and_speed_verified: false
+  training_started: false
+live_evaluation:
+  enabled: true
+  cohort_id: compare_saved_baseline_v4_full1500_fixed10_v1
+  case_employee_ids:
+  - 12
+  - 14
+  - 6
+  - 8
+  - 16
+  - 7
+  - 15
+  - 17
+  - 13
+  - 12
+experiment_id: 3627fc48-185f-48ab-bd1c-fe7a8bc2a922
+runtime:
+  linear_attention_backend: torch_reference

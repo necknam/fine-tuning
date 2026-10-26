@@ -84,6 +84,8 @@ def command(kind, config, adapter=None, case=0):
                 "--adapter", str(path), "--case-index", str(int(case)), "--max-new-tokens", "2048"]
     if kind == "probe":
         return [str(PYTHON), "-c", "print('LOCAL_RUNPOD_BRIDGE_OK', flush=True)"]
+    if kind == "train_save_only":
+        return [str(PYTHON), "-u", "scripts/control_pipeline.py", "--config", config, "--train-save-only"]
     if kind == "experiment":
         return [str(PYTHON), "-u", "scripts/control_pipeline.py", "--config", config]
     if kind == "evaluate_existing":
@@ -98,7 +100,7 @@ def submit(kind, config="configs/hyperparameters.sample.pinned.yaml", adapter=No
     argv = command(kind, config, adapter, case)
     if not PYTHON.is_file():
         raise ValueError("RunPod venv is missing")
-    if kind in ("check", "register", "train", "resume", "sync", "experiment", "continue_experiment", "evaluate_existing"):
+    if kind in ("check", "register", "train", "resume", "sync", "experiment", "continue_experiment", "evaluate_existing", "train_save_only"):
         missing = [k for k in ("HF_TOKEN", "HF_REPO_ID", "DATABASE_URL") if not os.environ.get(k)]
         if missing:
             raise ValueError("Missing remote credentials: " + ", ".join(missing))

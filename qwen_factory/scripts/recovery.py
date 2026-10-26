@@ -1,22 +1,25 @@
 """Reconnect control sessions without submitting or resuming GPU jobs."""
 import time
+import json
 from pathlib import Path
 import app_settings
 from runpod_client import RunPodClient
 
 SERVICE_FILES = ('app_settings.py','dashboard_store.py','human_reports.py',
                  'ai_evaluation.py','runpod_service.py','db_registry.py','prepare_data.py',
-                 'runpod_bridge.py','control_pipeline.py','compare_factory_sample.py',
-                 'runpod_factory_sample.py','factory_state.py','runpod_client.py','recovery.py')
+                 'runpod_bridge.py','control_pipeline.py','compare_factory_sample.py','inference_identity.py','local_evaluation_bundle.py',
+                 'runpod_factory_sample.py','factory_state.py','runpod_client.py','recovery.py','cloud_evidence.py','cloud_evaluation.py','cloud_employee_context.py','practical_reports.py')
 
 def reconnect(root, state, force=False):
     if not force and time.time()-state.get('reconnect_attempt_at',0)<60:
         return state.get('client')
     old=state.get('client')
     remembered=state.get('_reconnect_settings',{})
-    url=app_settings.get(root,'RUNPOD_JUPYTER_URL',getattr(old,'url',remembered.get('url','')))
+    public_path=Path(root)/'reports/connection_settings.json'
+    public=json.loads(public_path.read_text(encoding='utf-8')) if public_path.exists() else {}
+    url=getattr(old,'url','') or remembered.get('url') or public.get('url') or app_settings.get(root,'RUNPOD_JUPYTER_URL','')
     token=app_settings.get(root,'RUNPOD_JUPYTER_TOKEN',getattr(old,'token',remembered.get('token','')))
-    remote=app_settings.get(root,'RUNPOD_REMOTE_PATH',getattr(old,'remote_path',remembered.get('remote','workspace/qwen_factory')))
+    remote=getattr(old,'remote_path','') or remembered.get('remote') or public.get('remote_path') or app_settings.get(root,'RUNPOD_REMOTE_PATH','workspace/qwen_factory')
     if not (url and token):
         state['recovery_notice']='저장 기록 복원 완료 · 최신 RunPod 상태를 보려면 왼쪽에서 연결하세요.'
         return old
@@ -39,7 +42,7 @@ def deploy_service(root,client,auto_ai=True):
     for name in SERVICE_FILES:
         client.contents('scripts/'+name,(root/'scripts'/name).read_text(encoding='utf-8'))
     values=app_settings.read(root)
-    env={k:values[k] for k in ('DATABASE_URL','OPENAI_API_KEY','OPENAI_EVAL_MODEL','HF_TOKEN','HF_REPO_ID') if values.get(k)}
+    env={k:values[k] for k in ('DATABASE_URL','GROWPATH_DB_URL','OPENAI_API_KEY','OPENAI_EVAL_MODEL','HF_TOKEN','HF_REPO_ID') if values.get(k)}
     env['DASHBOARD_STORAGE']='neon'
     if not env.get('DATABASE_URL'):
         raise ValueError('복구 서비스에 DATABASE_URL 설정이 필요합니다.')

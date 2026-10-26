@@ -2516,6 +2516,22 @@
         "default": null,
         "identity": "",
         "generated": ""
+      },
+      {
+        "column": "enrollment_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "graduation_date",
+        "type": "date",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
       }
     ],
     "pk": [
@@ -2548,6 +2564,17 @@
       }
     ],
     "constraints": [
+      {
+        "name": "employee_education_dates_order",
+        "type": "c",
+        "definition": "CHECK (enrollment_date IS NULL OR graduation_date IS NULL OR graduation_date >= enrollment_date)",
+        "target": "-",
+        "columns": [
+          "enrollment_date",
+          "graduation_date"
+        ],
+        "target_columns": []
+      },
       {
         "name": "employee_education_records_education_level_check",
         "type": "c",
@@ -2960,6 +2987,22 @@
         "default": null,
         "identity": "",
         "generated": ""
+      },
+      {
+        "column": "planned_project_description",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
+      },
+      {
+        "column": "unlisted_certifications",
+        "type": "text",
+        "not_null": false,
+        "default": null,
+        "identity": "",
+        "generated": ""
       }
     ],
     "pk": [
@@ -3105,6 +3148,16 @@
         ]
       },
       {
+        "name": "employees_number_required",
+        "type": "c",
+        "definition": "CHECK (employee_number IS NOT NULL AND employee_number !~ '^[[:space:]]*$'::text) NOT VALID",
+        "target": "-",
+        "columns": [
+          "employee_number"
+        ],
+        "target_columns": []
+      },
+      {
         "name": "employees_number_unique",
         "type": "u",
         "definition": "UNIQUE (institution_id, employee_number)",
@@ -3122,6 +3175,26 @@
         "target": "-",
         "columns": [
           "password_hash"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_planned_project_description_nonblank",
+        "type": "c",
+        "definition": "CHECK (planned_project_description IS NULL OR length(btrim(planned_project_description)) > 0)",
+        "target": "-",
+        "columns": [
+          "planned_project_description"
+        ],
+        "target_columns": []
+      },
+      {
+        "name": "employees_unlisted_certifications_nonblank",
+        "type": "c",
+        "definition": "CHECK (unlisted_certifications IS NULL OR length(btrim(unlisted_certifications)) > 0)",
+        "target": "-",
+        "columns": [
+          "unlisted_certifications"
         ],
         "target_columns": []
       },

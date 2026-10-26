@@ -76,17 +76,17 @@ def import_curated_release(source, root):
 
 
 def install_curated_uploads(root, uploads, config):
-    """Install the frozen four-file cohort without newline conversion or split changes."""
+    """Install exactly the frozen files required by the selected training policy."""
     import tempfile
     from db_registry import build_plans
     root=Path(root).resolve()
     specs={
         'train':(config['data']['train_file'],config['data']['train_sha256']),
-        'validation':(config['data']['validation_file'],config['data']['validation_sha256']),
-        'heldout':(config['data']['heldout_test_file'],config['data']['heldout_sha256']),
         'report':(config['evaluation']['file'],config['evaluation']['sha256']),
     }
-    if set(uploads)!=set(specs):raise ValueError('Upload train, validation, heldout and the fixed report inputs together')
+    for key,field in (('validation','validation_file'),('heldout','heldout_test_file')):
+        if config['data'].get(field):specs[key]=(config['data'][field],config['data'][key+'_sha256'])
+    if set(uploads)!=set(specs):raise ValueError('Upload all required files together: '+', '.join(specs))
     for key,(relative,expected) in specs.items():
         target=(root/relative).resolve()
         if not target.is_relative_to(root/'data'):raise ValueError('Unsafe dataset path')
@@ -104,7 +104,8 @@ def install_curated_uploads(root, uploads, config):
         build_plans(stage,recipe,False)
     for key,(relative,_) in specs.items():
         target=root/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(uploads[key])
-    return {'train':1200,'validation':150,'heldout':150,'report':10}
+    return ({'train':1500,'report':10} if config['data'].get('training_scope')=='all_1500_fixed10'
+            else {'train':1200,'validation':150,'heldout':150,'report':10})
 
 
 def main():

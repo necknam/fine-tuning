@@ -1,0 +1,4 @@
+# B200 only: tested BF16 FLA forward/backward through 9230 tokens.
+# Apply after requirements-runpod.txt: python -m pip install --no-deps -r requirements-kernel-b200.txt
+# Intentional override of torch 2.8 package metadata; preserve actual GPU probe receipts.
+triton==3.6.0

@@ -44,6 +44,8 @@ def save_report(output, result, write_markdown=True):
     output.mkdir(parents=True, exist_ok=False)
     (output / "comparison.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if not write_markdown:return
+    from practical_reports import render as render_practical_report
+    (output/'practical_report.md').write_text(render_practical_report(result),encoding='utf-8')
     sections = ["# GrowPath · 간이 어댑터 재로드 비교", "",
         "> 고정 입력의 기본 모델·어댑터 답변입니다. 품질 점수는 Streamlit에서 사람이 별도로 평가합니다.", "",
         f"- 기본 모델: {result['model']['base_model_id']}",
@@ -86,6 +88,7 @@ def find_base_cache(root,cfg,messages,generation,manifest,batch_context):
         base=data.get("base",{})
         if (data.get("batch_context_sha256")==batch_context
             and data.get("packages")==packages
+            and data.get("inference_runtime",{})==cfg.get("runtime",{})
             and data.get("model")==cfg["model"]
             and data.get("quantization")=={"load_in_4bit":False,"dtype":"bfloat16"}
             and data.get("messages")==messages and data.get("generation")==generation
@@ -136,9 +139,8 @@ def main():
     if manifest.get("is_sample") is not sample_mode(cfg):
         raise ValueError("Sample/production adapter does not match this experiment")
     if cfg.get('experiment_id') or not sample_mode(cfg):
-        plan=build_plans(root,config_path,sample_mode(cfg))[0]
-        if manifest['config_hash']!=plan['config_hash']:
-            raise ValueError("Adapter belongs to different training data or experiment")
+        from inference_identity import validate as validate_training_identity
+        validate_training_identity(root,config_path,cfg,manifest,runtime,adapter.parent.parent)
     if manifest["model"] != cfg["model"] or runtime["model"] != cfg["model"]:
         raise ValueError("Base model/revision differs from training")
     if manifest["config_hash"] != runtime["config_hash"]:
@@ -172,6 +174,8 @@ def main():
     from transformers import AutoModelForImageTextToText, AutoTokenizer
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise ValueError("Run in the existing single-GPU RunPod environment")
+    from model_runtime import configure
+    configure(cfg)
     evaluation_precision = {"load_in_4bit": False, "dtype": "bfloat16"}
     if not torch.cuda.is_bf16_supported():
         raise ValueError("BF16 evaluation requires a BF16-capable GPU")
@@ -242,7 +246,7 @@ def main():
                 "reference_status":"fixed_dataset_answer_not_expert_validated" if reference is not None else "no_reference_output_comparison_only","generation":generation,"input_tokens":input_length,
                 "inference_batch_size":len(selected),
                 "batch_context_sha256":batch_context,
-                "packages":inference_packages(),
+                "packages":inference_packages(),"inference_runtime":cfg.get("runtime",{}),
                 "inference_memory":{"peak_allocated_gib":torch.cuda.max_memory_allocated()/2**30,"peak_reserved_gib":torch.cuda.max_memory_reserved()/2**30},
                 "base_reused":cached_base is not None,"base_source_report":str(cached_base[0].relative_to(root)) if cached_base else None,
                 "base":base_response,"tuned":tuned_response,"texts_identical":base_response["text"]==tuned_response["text"]}

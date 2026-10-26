@@ -15,7 +15,7 @@ class EvaluationCohortTests(unittest.TestCase):
         publish=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='publish')
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);(root/'scripts').mkdir();(root/'configs').mkdir();(root/'data/eval').mkdir(parents=True)
-            for name in ('control_pipeline.py','compare_factory_sample.py','runpod_bridge.py','db_registry.py','runpod_factory_sample.py','prepare_data.py','factory_state.py'):
+            for name in ('control_pipeline.py','model_runtime.py','runtime_migration.py','inference_identity.py','local_evaluation_bundle.py','compare_factory_sample.py','runpod_bridge.py','db_registry.py','runpod_factory_sample.py','prepare_data.py','factory_state.py','cloud_evidence.py','cloud_evaluation.py','cloud_employee_context.py','practical_reports.py'):
                 (root/'scripts'/name).write_text('# source',encoding='utf-8')
             data=root/'data/production';data.mkdir()
             for name in ('train','validation','test'):
@@ -26,7 +26,7 @@ class EvaluationCohortTests(unittest.TestCase):
                 'test_file':'data/eval/prompts.app_v1.jsonl','heldout_test_file':'data/production/test.jsonl',
                 'heldout_sha256':hashlib.sha256((data/'test.jsonl').read_bytes()).hexdigest()},
                 'evaluation':{'mode':'shared_fixed_10','expected_count':10,'file':'data/eval/prompts.app_v1.jsonl','sha256':hashlib.sha256(fixed.read_bytes()).hexdigest()}}
-            sent={};client=SimpleNamespace(contents=lambda *a:None,ensure_file=lambda name,text:sent.__setitem__(name,text))
+            sent={};client=SimpleNamespace(contents=lambda name,text:sent.__setitem__(name,text),ensure_file=lambda name,text:sent.__setitem__(name,text))
             env={'ROOT':root,'connection':lambda:client,'sample_mode':sample_mode,'report_input_info':report_input_info,
                  'hashlib':hashlib,'json':json,'yaml':yaml,'dashboard_store':SimpleNamespace(persist=lambda *a:None)}
             exec(compile(ast.Module(body=[publish],type_ignores=[]),'publish-test','exec'),env)
@@ -36,6 +36,8 @@ class EvaluationCohortTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(sent[cfg['data']['heldout_test_file']].encode()).hexdigest(),cfg['data']['heldout_sha256'])
             self.assertEqual(hashlib.sha256(sent[cfg['data']['test_file']].encode()).hexdigest(),cfg['evaluation']['sha256'])
             self.assertTrue(report_input_info(root,cfg))
+            self.assertIn('scripts/inference_identity.py',sent)
+            self.assertIn('scripts/local_evaluation_bundle.py',sent)
 
     def test_heldout_reference_is_not_sent_as_prompt(self):
         with tempfile.TemporaryDirectory() as folder:

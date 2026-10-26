@@ -124,3 +124,50 @@ FROM public.course_availability;
 
 016 마이그레이션은 `employees`에 입사일 `hire_date DATE NULL`과 현 부서 시작일 `department_start_date DATE NULL`만 추가합니다. 기존 직원 날짜는 추정하지 않고 NULL로 유지합니다. 둘 다 있으면 부서 시작일은 입사일 이후 또는 같은 날이어야 합니다.
 `get_employee_profile()`에서 두 날짜를 조회하며, `update_employee_dates(employee_id, hire_date="2024-03-01", department_start_date="2026-01-01")`로 저장합니다. 각 값은 YYYY-MM-DD 문자열·Python date·None을 받으며 None은 해당 날짜를 지웁니다. 기존 부서 변경 API는 날짜를 자동 변경하지 않으므로 배치일이 바뀌면 날짜 API도 호출합니다. `python scripts/db.py migrate`로 적용합니다.
+
+## 팀원 입력 시트 추가 컬럼 (2026-10-23)
+
+변경 이유·시트 매핑·완료/미완료 상태는 최상위 [시트_DB_변경점.md](../시트_DB_변경점.md)를 기준으로 관리합니다. 017~019는 현재 로컬 DB에 적용했습니다. 이전 전달용 덤프 및 Cloud 직원 DB에도 적용됐다고 가정하지 말고 해당 DB의 마이그레이션 이력을 확인하세요.
+
+| 마이그레이션 | 저장 위치 | 용도 |
+|---|---|---|
+| 017 | employees.planned_project_description TEXT NULL | 설문 전 추천용 본인 업무·구상 프로젝트 원문 |
+| 018 | employees.unlisted_certifications TEXT NULL | 자격 마스터에 없는 직원별 보유 자격 원문 |
+| 019 | employee_education_records.enrollment_date DATE NULL | 입학일 |
+| 019 | employee_education_records.graduation_date DATE NULL | 졸업일 |
+
+직원 원문 두 필드는 `get_employee_profile(employee_id)`에서 조회합니다. `update_employee_planned_project(employee_id, description)`와 `update_employee_unlisted_certifications(employee_id, text)`로 저장합니다. 문자열 앞뒤 공백을 제거하며 빈 문자열·None은 해당 필드를 지웁니다. 일반 폼의 미입력은 저장 함수를 호출하지 않아 기존 값을 유지해야 합니다. 프로젝트 설명 변경은 기존 직원 추천 질문을 초기화합니다. 자격 원문 저장은 자격 마스터나 보유 관계를 자동 생성하지 않습니다.
+
+학력 날짜는 기존 `DatabaseClient.table('employee_education_records')`를 통해 해당 `education_record_id`에 저장합니다. 날짜는 YYYY-MM-DD 또는 None을 사용합니다. 두 날짜가 있으면 졸업일이 입학일보다 빠를 수 없습니다. 학교명·학력·employee_id는 기존 필수값이며 날짜만으로 불완전한 학력 행을 만들지 않습니다. API 호출자의 직원 접근 권한은 서버에서 검증해야 합니다.
+
+시트 날짜 선택은 팀원입력 D18:H19(입사/현 부서), D34:H35(입학/졸업)를 더블클릭합니다. 학력 31~33행은 기존 education_level/school_name/department_name에 연결하고, 날짜 34~35행은 DB반영 33~34행에 연결합니다. 시트는 저장값 미리보기이며 DB 자동 동기화는 별도입니다.
+
+
+## 시트 조직·날짜 팝업·DB 문서 유지보수
+
+승인된 시트 조직은 `python scripts/sync_sheet_organization.py`로 등록합니다. 기관과 부서 코드가 일치하는지 확인하고 기존 관계와 충돌하면 중단합니다. 직원 소속·직급을 일괄 변경하지 않습니다. 현재 시트 선택 직급은 2급(을)·3급·4급·5급입니다.
+
+ERD와 DB 구조 문서는 `python scripts/refresh_db_documents.py`로 최신 로컬 DB에서 갱신합니다. ERD의 기존 CSS·화면과 보고서 양식을 유지하고 데이터·컬럼·관계·건수만 바꿉니다. 통합 보고서는 DB 절만 갱신합니다.
+
+날짜 입력은 기존 셀의 기본 달력을 유지합니다. 연도·월을 직접 선택하는 팝업의 설치 소스는 [Apps Script 달력](apps_script/Calendar/README.md)에 있습니다. 사용자가 실제 Apps Script 설치·동작 확인 완료를 전달했습니다. 별도 날짜입력 탭은 제거했고 날짜 20개는 보존했습니다.
+
+
+## 현재 범위: DB 구조만 동기화
+
+시트 직원 정보는 아직 DB에 저장하지 않습니다. 5명 정보가 잘못 반영됐던 로컬 작업은 직전 백업으로 완전히 복구했습니다. 시트 원본은 그대로입니다. `python scripts/sync_employee_sheet.py`는 현재 검증 미리보기만 실행하며 `--apply` 옵션은 제공하지 않습니다. 검증·저장 내부 코드는 테스트용 롤백 트랜잭션에서만 검사했습니다. 나중에 데이터 적재를 명시적으로 승인받기 전에는 실행 경로를 활성화하지 않습니다.
+
+`python scripts/sync_cloud_hr_schema.py`는 Supabase의 비공개 `growpath_hr`에 직원·보유 기술·보유 자격·학력·추천 질문 구조만 생성/검증합니다. 직원 데이터·추천 질문 생성·외부 스케줄은 포함하지 않습니다. 초기 생성 시 다섯 테이블은 0행이었으며, 현재는 아래 테스트 직원 100명 현황을 따릅니다. Cloud 마스터 테이블은 `growpath_live`를 참조하며 로컬 `public`과 스키마명을 구분합니다. 코드 push와 Cloud 앱 배포 완료를 뜻하지 않습니다.
+
+
+## Supabase 테스트 직원 100명 확장 — 2026-10-23
+
+기존 TEST_MANUAL 9명을 보존하고 91명을 추가해 총 100명으로 확장했다. AI데이터센터·인재경영실·업무시스템팀·인프라운영팀·데이터운영팀 각 20명(부서장 1명+직원 19명). 상위 조직에는 중복 배치하지 않았다.
+
+사번은 TM26-부서ID-순번이며 NULL·공백·기관별 중복이 없다. 직급은 기존 2급(을)~5급, 직무·기술·자격은 실제 마스터 FK로 연결하며 시드 20261023으로 배정한다. 새 직원은 직무 연관 기술을 최소 1개 포함해 보유 기술 2~4개, 자격 0~2개와 가상 학력·날짜·프로젝트 설명을 가진다. 합성 정보이며 실제 역량이나 실제 이력이 아니다. 공통 테스트 비밀번호의 Argon2id 설정·검증은 아래 비밀번호 설정 항목에 기록했다.
+
+실제 팀원 5명의 시트 정보는 추가하지 않았고 로컬 DB도 수정하지 않았다. 기존 9명과 고정 10개 평가의 직원 배정은 유지했다. 새 가데이터는 Supabase에만 존재하므로 현재 로컬과 직원 행 수는 다르다. 재현 도구: database/scripts/seed_cloud_test_workforce.py --apply; 기본 실행은 계획 조회이며 기존 행을 삭제·덮어쓰지 않는다. 읽기 전용 Cloud 계정에서 100명 조회를 확인했다.
+
+
+### 테스트 계정 로그인 비밀번호 설정
+
+Supabase TEST_MANUAL 100명 전체에 사용자 지정 공통 테스트 비밀번호를 Argon2id로 개별 솔트 해싱해 적용하고 100건 모두 검증했다. 비밀번호 평문은 문서·DB·수정 코드에 저장하지 않는다. 로컬 DB와 TEST_MANUAL 외 계정은 수정하지 않았다. 앞 절의 신규 91명 비밀번호 미설정 상태는 이 작업으로 해소됐다.

@@ -9,42 +9,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load_snapshot():
     data = json.loads((ROOT / "dashboard/current_b200.json").read_text(encoding="utf-8"))
+    # Explicit checks must also run under python -O.
+    if set(data.get("epochs", {})) != {"2", "3", "4", "5"}:
+        raise ValueError("저장 결과의 에폭 구성이 올바르지 않습니다.")
     for epoch, run in data["epochs"].items():
-        assert len(run["cases"]) == 10
-        assert {case["case_index"] for case in run["cases"]} == set(range(10))
-        for case in run["cases"]:
-            assert case["test_sha256"] == data["eval_sha256"]
-            assert case["factory_manifest"]["run_id"] == run["run_id"]
-            assert case["factory_manifest"]["trained_epoch"] == int(epoch)
+        cases = run.get("cases", [])
+        if len(cases) != 10 or {case.get("case_index") for case in cases} != set(range(10)):
+            raise ValueError("저장 결과의 평가 입력 10개가 일치하지 않습니다.")
+        for case in cases:
+            manifest = case.get("factory_manifest", {})
+            if (case.get("test_sha256") != data["eval_sha256"]
+                    or manifest.get("run_id") != run.get("run_id")
+                    or manifest.get("trained_epoch") != int(epoch)):
+                raise ValueError("저장 결과의 실행 ID·평가 해시·에폭이 일치하지 않습니다.")
     return data
 
 
 def render():
     dashboard_auth.require_login(ROOT)
     data = load_snapshot()
-    st.title("GrowPath · B200 실험 결과")
+    st.title("GrowPath · B200 저장 결과")
     st.caption("배포 버전 2026-10-22-b200 · 저장된 실제 실행 결과 기준 · Neon DB 실시간 연동은 다음 단계입니다.")
     st.info("수정 1,500건 전체 학습 · 별도 검증/보류 평가 분할 없음 · 같은 평가 입력 10개 × 2~5에폭 = 40건 비교 완료")
-    st.success("2~5에폭 가중치 로컬 백업 및 SHA256 검증 완료")
+    st.caption("백업·SHA256 검증 완료 표시는 저장 자료의 기록이며, 현재 파일이나 원격 GPU를 재검증한 결과가 아닙니다.")
     st.warning("구조 검사 성공은 의미 품질 합격이 아닙니다. 최종 에폭은 실제 답변을 비교해 판단합니다.")
-    overview, dataset, comparison, settings, report = st.tabs(["완료 현황", "학습 데이터 1,500건", "실제 입력·답변 비교", "현재 설정·프리셋", "종합 보고서"])
+    overview, comparison, settings, report = st.tabs(["완료 현황", "실제 입력·답변 비교", "저장된 설정·프리셋", "종합 보고서"])
     with overview:
         st.caption("자료 확인 시점: " + data["observed_at"] + " · 자동 갱신되는 GPU 상태가 아닙니다.")
         st.dataframe([{"에폭":int(n), "학습":"완료", "비교":"10/10", "내용 검토":"완료" if r["content_reviewed"] else "대기", "가중치 백업":"SHA 검증 완료" if r["backup_verified"] else "미완료", "실행 ID":r["run_id"]} for n,r in data["epochs"].items()], hide_index=True)
         st.markdown(data["overall_review"])
         st.caption("2에폭 cosine 종료 후 optimizer/scheduler를 새로 시작해 3~5에폭 cosine 구간을 수행했습니다. 단일 5에폭 스케줄과 같지 않습니다. H100과 B200 비교는 GPU와 양자화 방식이 함께 바뀐 조건입니다.")
-    with dataset:
-        info=data["dataset"]
-        st.subheader("학습 데이터 1,500건 · 구성과 변경 이력")
-        st.caption("이번 B200 학습에 실제 사용한 수정본입니다. 평가 입력 10개와는 다른 데이터입니다.")
-        st.dataframe(info["tasks"],hide_index=True)
-        st.subheader("왜 줄였고, 어떻게 수정했나")
-        for i, item in enumerate(info["process"],1):
-            st.markdown(f"**{i}.** {item}")
-        token=info["tokens"]
-        st.info(f"전체 {info['total']:,}건 · 최대 {token['max']:,}토큰 · 중앙값 {token['median']:,} · 7,168 초과 {token['over_7168']}건 · 데이터 잘림 없음")
-        st.warning(info["limitations"])
-        st.code("학습 파일: data/revision_1500/assembled/all.jsonl\nSHA256: "+data["data_sha256"])
     with comparison:
         epoch = st.selectbox("학습 에폭", [n+"에폭" for n in data["epochs"]], index=3).replace("에폭", "")
         case_options = [f"사례 {i+1} · {data['case_titles'][i]}" for i in range(10)]
