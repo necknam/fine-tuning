@@ -1,0 +1,61 @@
+# Extended preset P61 (lr=7.5e-05, r=16, alpha=32, wd=0.01, warmup=0.05)
+profile: qwen35_4b_b200_3000_p61_v1
+preset: P61
+hardware: B200
+model:
+  base_model_id: Qwen/Qwen3.5-4B
+  revision: 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a
+quantization:
+  load_in_4bit: false
+  dtype: bfloat16
+data:
+  expected_records: 3000
+  train_file: data/production/expanded_3000/all.jsonl
+  release_manifest: data/production/expanded_3000/release_manifest.json
+  original_file: data/revision_1500/assembled/all.jsonl
+training:
+  learning_rate: 0.000075
+  num_train_epochs: 5
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16
+  max_length: 10240
+  packing: false
+  bf16: true
+  gradient_checkpointing: true
+  loss_policy: final_assistant_only
+  seed: 42
+  data_seed: 42
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+  weight_decay: 0.01
+  optim: paged_adamw_8bit
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  bias: none
+  scope: language_model/all-linear
+sample:
+  records: 60
+  epochs: 1
+  maximum_memory_fraction: 0.95
+save_epochs:
+- 2
+- 5
+evaluation:
+  file: data/eval/prompts.app_v2.jsonl
+  sha256: d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac
+inference:
+  max_new_tokens: 4096
+  do_sample: false
+  enable_thinking: false
+output_root: outputs/qwen35_4b_3000_P61
+model_cache: /workspace/.cache/huggingface
+runtime:
+  packages:
+    transformers: 4.57.3
+    torch: 2.7.0
+    peft: 0.17.1
+    accelerate: 1.12.0
+    datasets: 3.6.0
+    triton: 3.6.0

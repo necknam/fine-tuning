@@ -1,0 +1,737 @@
+{
+  "P07": {
+    "learning_rate": 0.0001,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P08": {
+    "learning_rate": 0.0001,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P09": {
+    "learning_rate": 0.0001,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P10": {
+    "learning_rate": 0.0001,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P11": {
+    "learning_rate": 0.0001,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P12": {
+    "learning_rate": 0.0001,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P13": {
+    "learning_rate": 0.0001,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P14": {
+    "learning_rate": 0.0001,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P15": {
+    "learning_rate": 0.0001,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P16": {
+    "learning_rate": 0.0001,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P17": {
+    "learning_rate": 0.0001,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P18": {
+    "learning_rate": 0.0001,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P19": {
+    "learning_rate": 0.0001,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P20": {
+    "learning_rate": 0.0001,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P21": {
+    "learning_rate": 0.0001,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P22": {
+    "learning_rate": 0.0001,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P23": {
+    "learning_rate": 0.0001,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P24": {
+    "learning_rate": 0.0001,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P25": {
+    "learning_rate": 0.0001,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P26": {
+    "learning_rate": 0.0001,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P27": {
+    "learning_rate": 0.0001,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P28": {
+    "learning_rate": 0.0001,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P29": {
+    "learning_rate": 0.0001,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P30": {
+    "learning_rate": 0.0001,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P31": {
+    "learning_rate": 0.0001,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P32": {
+    "learning_rate": 0.0001,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P33": {
+    "learning_rate": 0.0001,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P34": {
+    "learning_rate": 0.0001,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P35": {
+    "learning_rate": 0.0001,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P36": {
+    "learning_rate": 0.0001,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P37": {
+    "learning_rate": 0.0001,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P38": {
+    "learning_rate": 0.0001,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P39": {
+    "learning_rate": 0.0001,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P40": {
+    "learning_rate": 0.0001,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P41": {
+    "learning_rate": 0.0001,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P42": {
+    "learning_rate": 0.0001,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P43": {
+    "learning_rate": 7.5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P44": {
+    "learning_rate": 7.5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P45": {
+    "learning_rate": 7.5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P46": {
+    "learning_rate": 7.5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P47": {
+    "learning_rate": 7.5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P48": {
+    "learning_rate": 7.5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P49": {
+    "learning_rate": 7.5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P50": {
+    "learning_rate": 7.5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P51": {
+    "learning_rate": 7.5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P52": {
+    "learning_rate": 7.5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P53": {
+    "learning_rate": 7.5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P54": {
+    "learning_rate": 7.5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P55": {
+    "learning_rate": 7.5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P56": {
+    "learning_rate": 7.5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P57": {
+    "learning_rate": 7.5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P58": {
+    "learning_rate": 7.5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P59": {
+    "learning_rate": 7.5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P60": {
+    "learning_rate": 7.5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P61": {
+    "learning_rate": 7.5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P62": {
+    "learning_rate": 7.5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P63": {
+    "learning_rate": 7.5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P64": {
+    "learning_rate": 7.5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P65": {
+    "learning_rate": 7.5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P66": {
+    "learning_rate": 7.5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P67": {
+    "learning_rate": 7.5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P68": {
+    "learning_rate": 7.5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P69": {
+    "learning_rate": 7.5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P70": {
+    "learning_rate": 7.5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P71": {
+    "learning_rate": 7.5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P72": {
+    "learning_rate": 7.5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P73": {
+    "learning_rate": 7.5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P74": {
+    "learning_rate": 7.5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P75": {
+    "learning_rate": 7.5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P76": {
+    "learning_rate": 7.5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P77": {
+    "learning_rate": 7.5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P78": {
+    "learning_rate": 7.5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P79": {
+    "learning_rate": 5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P80": {
+    "learning_rate": 5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P81": {
+    "learning_rate": 5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P82": {
+    "learning_rate": 5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P83": {
+    "learning_rate": 5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P84": {
+    "learning_rate": 5e-05,
+    "r": 32,
+    "lora_alpha": 64,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P85": {
+    "learning_rate": 5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P86": {
+    "learning_rate": 5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P87": {
+    "learning_rate": 5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P88": {
+    "learning_rate": 5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P89": {
+    "learning_rate": 5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P90": {
+    "learning_rate": 5e-05,
+    "r": 64,
+    "lora_alpha": 128,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P91": {
+    "learning_rate": 5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P92": {
+    "learning_rate": 5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P93": {
+    "learning_rate": 5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P94": {
+    "learning_rate": 5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P95": {
+    "learning_rate": 5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P96": {
+    "learning_rate": 5e-05,
+    "r": 128,
+    "lora_alpha": 256,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P97": {
+    "learning_rate": 5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P98": {
+    "learning_rate": 5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P99": {
+    "learning_rate": 5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P100": {
+    "learning_rate": 5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P101": {
+    "learning_rate": 5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P102": {
+    "learning_rate": 5e-05,
+    "r": 16,
+    "lora_alpha": 32,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P103": {
+    "learning_rate": 5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P104": {
+    "learning_rate": 5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P105": {
+    "learning_rate": 5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  },
+  "P106": {
+    "learning_rate": 5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.03
+  },
+  "P107": {
+    "learning_rate": 5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.05
+  },
+  "P108": {
+    "learning_rate": 5e-05,
+    "r": 48,
+    "lora_alpha": 96,
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03
+  },
+  "P109": {
+    "learning_rate": 5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.05
+  },
+  "P110": {
+    "learning_rate": 5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.03
+  },
+  "P111": {
+    "learning_rate": 5e-05,
+    "r": 96,
+    "lora_alpha": 192,
+    "weight_decay": 0.05,
+    "warmup_ratio": 0.05
+  }
+}

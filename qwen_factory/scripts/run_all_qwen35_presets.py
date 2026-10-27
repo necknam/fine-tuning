@@ -12,7 +12,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
-ALL_PRESETS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']
+ALL_PRESETS = [f"P{i:02d}" if i < 100 else f"P{i}" for i in range(1, 112)]
 
 
 def main():

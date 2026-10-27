@@ -1,8 +1,10 @@
-"""Watchdog & Automated Reporter for Qwen3.5-4B Presets P01~P06 on RunPod.
+"""Watchdog & Automated Reporter for Qwen3.5-4B Presets P01~P111 on RunPod.
 
 Monitors training loss, epoch progression, benchmark evaluations, pulls artifacts,
 sends hourly progress emails to gom2553@naver.com while running, sends preset completion
 emails, and automatically stops the RunPod instance upon completion (discontinuing hourly reports).
+If stopping RunPod is impossible after P06, sequentially continues from P07 to P111, only stopping
+when the instance is actually confirmed EXITED.
 """
 import argparse
 import base64
@@ -17,6 +19,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import app_settings
 from runpod_client import RunPodClient
 from send_notification_email import send_email
+
+ALL_PRESET_IDS = [f"P{i:02d}" if i < 100 else f"P{i}" for i in range(1, 112)]
 
 
 def get_remote_state(client: RunPodClient):
@@ -45,9 +49,10 @@ for l in ps_lines:
 
 current_running_preset = None
 if active_runner:
-    for p in ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']:
-        if f'{p}.yaml' in active_runner:
-            current_running_preset = p
+    for i in range(1, 112):
+        pid = f"P{i:02d}" if i < 100 else f"P{i}"
+        if f"{pid}.yaml" in active_runner:
+            current_running_preset = pid
             break
 
 # 3. Batch progress file
@@ -86,14 +91,17 @@ if os.path.exists('/workspace/qwen_factory/outputs/run_all_presets.log'):
 
 # 6. Check completed presets and reports
 completed_presets = {}
-for p in ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']:
-    res_files = glob.glob(f'/workspace/qwen_factory/outputs/qwen35_4b_3000_{p}/**/full3000/result.json', recursive=True)
-    if res_files:
-        try:
-            with open(res_files[0], 'r', encoding='utf-8') as f:
-                completed_presets[p] = json.load(f)
-        except Exception:
-            pass
+for res_file in glob.glob('/workspace/qwen_factory/outputs/qwen35_4b_3000_P*/**/full3000/result.json', recursive=True):
+    parts = res_file.split('/')
+    for part in parts:
+        if part.startswith('qwen35_4b_3000_P'):
+            pid = part.replace('qwen35_4b_3000_', '')
+            try:
+                with open(res_file, 'r', encoding='utf-8') as f:
+                    completed_presets[pid] = json.load(f)
+            except Exception:
+                pass
+            break
 
 print(json.dumps({
     "gpu": gpu_out,
@@ -121,12 +129,44 @@ req = urllib.request.Request(
         'Authorization': 'Bearer ' + os.environ.get('RUNPOD_API_KEY', '')
     }}
 )
-with urllib.request.urlopen(req, timeout=30) as resp:
-    res = json.load(resp)
-print(json.dumps(res))
+try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        res = json.load(resp)
+    print(json.dumps(res))
+except Exception as e:
+    print(json.dumps({{"error": str(e)}}))
 '''
     res = client.execute(code, timeout=35)
-    return json.loads(res.strip())
+    try:
+        return json.loads(res.strip())
+    except Exception:
+        return {"error": res}
+
+
+def launch_fallback_presets(client: RunPodClient, start_pid: str):
+    print(f"[!] Launching extended presets starting from {start_pid} to P111 on RunPod...")
+    try:
+        start_idx = ALL_PRESET_IDS.index(start_pid)
+        target_presets = ALL_PRESET_IDS[start_idx:]
+    except ValueError:
+        target_presets = [start_pid]
+
+    code = f'''
+import subprocess
+cmd = [
+    '/workspace/qwen_factory/.venv-runpod/bin/python', '-u',
+    'scripts/run_all_qwen35_presets.py',
+    '--presets'
+] + {target_presets!r} + [
+    '--phase', 'all',
+    '--execute'
+]
+with open('/workspace/qwen_factory/outputs/extended_presets_batch.log', 'a', encoding='utf-8') as f:
+    proc = subprocess.Popen(cmd, cwd='/workspace/qwen_factory', stdout=f, stderr=subprocess.STDOUT)
+print(f"BATCH_EXTENDED_STARTED_PID_{{proc.pid}} from {start_pid} ({len(target_presets)} presets)")
+'''
+    res = client.execute(code, timeout=35)
+    print("[+] Fallback extended batch launch output:", res)
 
 
 def pack_and_download_results(client: RunPodClient):
@@ -164,7 +204,6 @@ def handle_hourly_email(state):
     """Check if 1 hour has elapsed since last hourly report and training is active."""
     all_done_file = ROOT / "outputs" / "all_done.json"
     if all_done_file.exists():
-        # Completed: do not send any more hourly updates
         return
 
     tracker_file = ROOT / "outputs" / "hourly_email_tracker.json"
@@ -178,7 +217,6 @@ def handle_hourly_email(state):
     now = time.time()
     last_sent = tracker.get("last_sent_at", 0)
 
-    # If first run or >= 3600 seconds (1 hour) elapsed
     if (now - last_sent) >= 3600:
         curr_p = state.get("current_running_preset", "Unknown")
         curr = state.get("current_status", {})
@@ -202,12 +240,12 @@ GrowPath Qwen3.5-4B RunPod B200 파인튜닝 1시간 정기 현황 요약입니�
 - 최근 Loss: {latest_loss}
 - 스텝당 실측 속도: {mean_s:.2f}초/스텝
 - 현재 프리셋 잔여 시간: 약 {rem_s/60:.1f} 분
-- 완료된 프리셋 목록: {', '.join(completed) if completed else '없음 (P01 진행 중)'}
+- 완료된 프리셋 목록: {', '.join(completed) if completed else 'P01 진행 중'}
 
 ■ GPU 리소스 상태:
 - GPU: {gpu}
 
-※ 본 1시간 정기 요약 보고는 전체 학습(P01~P06) 완료 및 RunPod 자동 중단과 동시에 발송이 자동 중단됩니다.
+※ 본 1시간 정기 요약 보고는 전체 학습 완료 및 RunPod 자동 중단과 동시에 발송이 자동 중단됩니다.
 감사합니다."""
 
         print(f"[+] Sending 1-hour progress summary email to gom2553@naver.com...")
@@ -281,49 +319,83 @@ def print_summary(state):
 
     completed = state.get("completed_presets", {})
     if completed:
-        print("\nCompleted Presets:")
-        for p, d in completed.items():
-            print(f"  [+] {p}: Status={d.get('status')}, Epochs={d.get('epochs')}, Loss={d.get('train_loss')}")
+        print(f"\nCompleted Presets ({len(completed)}):")
+        for p, d in sorted(completed.items()):
+            print(f"  [+] {p}: Status={d.get('status')}, Epochs={d.get('epochs')}")
     else:
-        print("\nCompleted Presets: None yet (P01 in progress)")
+        print("\nCompleted Presets: None yet")
     print("=" * 60)
 
 
-def finalize_run(client: RunPodClient):
-    print("[!] Finalizing run: packaging, stopping pod, sending final completion email...")
+def try_stop_or_fallback(client: RunPodClient, state: dict):
+    """When a batch stops, attempt to stop Pod. If impossible, continue P07..P111."""
+    completed = state.get("completed_presets", {})
+    print(f"[!] Batch stopped. {len(completed)} presets completed so far.")
+    
+    # Pack whatever is completed so far
     pack_and_download_results(client)
+
+    print("[!] Attempting to STOP RunPod instance (podStop)...")
     stop_resp = stop_remote_pod(client, "kq65qxmwibvy27")
-    print("[+] RunPod stopped successfully:", stop_resp)
+    print("[+] Pod stop response:", stop_resp)
 
-    # Mark all done so hourly emails permanently stop
-    all_done_file = ROOT / "outputs" / "all_done.json"
-    all_done_file.write_text(json.dumps({
-        "completed_at": time.time(),
-        "pod_stopped": True,
-        "stop_response": stop_resp
-    }, indent=2), encoding="utf-8")
+    desired = stop_resp.get("data", {}).get("podStop", {}).get("desiredStatus")
+    if desired == "EXITED":
+        # Successfully stopped!
+        all_done_file = ROOT / "outputs" / "all_done.json"
+        all_done_file.write_text(json.dumps({
+            "completed_at": time.time(),
+            "pod_stopped": True,
+            "stop_response": stop_resp,
+            "total_completed_presets": list(completed.keys())
+        }, indent=2), encoding="utf-8")
 
-    # Send final completion and pod stop email
-    subject = "[GrowPath 최종완료] Qwen3.5-4B 전 프리셋 학습 완료 및 RunPod GPU 정지 완료"
-    body = """안녕하세요!
-Qwen3.5-4B 프리셋 P01부터 P06까지 모든 5에폭 학습과 10개 벤치마크 평가가 최종 완료되었습니다.
+        subject = "[GrowPath 최종완료] RunPod GPU 정상 정지 확인 완료"
+        body = f"""안녕하세요!
+Qwen3.5-4B 프리셋 학습이 완료되어 RunPod GPU 인스턴스 정지 명령이 정상 승인(desiredStatus: EXITED)되었습니다.
 
-■ 최종 처리 내역:
-1. P01~P06 가중치 및 평가 결과 패킹 및 로컬 회수 완료
-2. 추가 과금 방지를 위한 RunPod B200 인스턴스 자동 정지 완료 (desiredStatus: EXITED)
-3. 1시간 정기 요약 메일 발송 종료
-4. 로컬 Streamlit 비교 대시보드(P01~P06 비교) 시각화 데이터 준비 완료
+■ 처리 내역:
+- 완료된 프리셋: {', '.join(sorted(completed.keys()))}
+- RunPod 상태: EXITED (과금 완전 차단)
+- 1시간 정기 요약 메일: 발송 종료
+- 결과 파일: 로컬 outputs/ 및 Streamlit 대시보드 저장 완료
 
-그동안 진행 상황을 확인해 주셔서 감사합니다.
-로컬 환경에서 Streamlit 대시보드를 열어 최적의 가중치 결과를 확인하실 수 있습니다."""
-    send_email(subject, body)
-    print("[+] Final completion email sent to gom2553@naver.com.")
+감사합니다."""
+        send_email(subject, body)
+        print("[+] Final completion email sent. RunPod EXITED confirmed.")
+        return True
+
+    # STOP WAS NOT POSSIBLE / FAILED!
+    # User rule: If stopping is impossible, continue with P07 to P111!
+    print(f"[!] Pod stop was NOT possible (status: {desired}). Looking for next preset up to P111...")
+
+    # Find the next preset that hasn't completed yet
+    next_pid = None
+    for pid in ALL_PRESET_IDS[6:]:  # P07 onwards
+        if pid not in completed:
+            next_pid = pid
+            break
+
+    if next_pid:
+        print(f"[!] Advancing to fallback preset {next_pid} (continuing up to P111)...")
+        send_email(
+            f"[GrowPath 알림] RunPod 인스턴스 정지 불가 확인 - 지침에 따라 {next_pid}부터 연속 실험 진행",
+            f"""안녕하세요!
+RunPod 인스턴스 자동 정지를 시도했으나 정상 정지되지 않았습니다. (응답: {stop_resp})
+
+유휴 GPU 과금 방지를 위한 사용자 지침("종료 불가능할 경우 P07~P111까지 진행, 종료 될 경우에만 종료")에 따라,
+{next_pid}부터 연속 실험을 자동 가동합니다.
+매 프리셋 완료 시마다 정지를 재시도하며, 정상 정지될 때만 최종 종료됩니다."""
+        )
+        launch_fallback_presets(client, next_pid)
+    else:
+        print("[!] All presets through P111 have been completed!")
+    return False
 
 
 def main():
     parser = argparse.ArgumentParser(description="Watch & report RunPod presets")
     parser.add_argument("--check", action="store_true", help="One-shot check and print summary")
-    parser.add_argument("--finalize", action="store_true", help="Pack, download, and stop pod")
     args = parser.parse_args()
 
     s = app_settings.read(ROOT)
@@ -331,17 +403,13 @@ def main():
     client.connect()
 
     try:
-        if args.finalize:
-            finalize_run(client)
-            return
-
         state = check_and_update(client)
         print_summary(state)
 
-        # Check if all 6 presets are completed
         completed = state.get("completed_presets", {})
-        if len(completed) == 6 and not state.get("is_batch_running"):
-            finalize_run(client)
+        # If P06 (or more) is completed and batch runner has finished
+        if len(completed) >= 6 and not state.get("is_batch_running"):
+            try_stop_or_fallback(client, state)
 
     finally:
         if client.kernel_id:

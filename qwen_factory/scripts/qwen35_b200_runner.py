@@ -38,19 +38,30 @@ PRESETS={
  'P06':{'learning_rate':0.0001,'r':64,'lora_alpha':128},
 }
 
+def get_preset_spec(preset,root=None):
+ if preset in PRESETS:return PRESETS[preset]
+ root=root or ROOT
+ manifest_file=root/'configs/extended_presets_manifest.json'
+ if manifest_file.is_file():
+  try:
+   ext=json.loads(manifest_file.read_text(encoding='utf-8'))
+   if preset in ext:return ext[preset]
+  except Exception:pass
+ return None
+
 def validate_config(cfg):
  preset=cfg.get('preset')
- if preset not in PRESETS:raise ValueError(f'Unsupported preset {preset}; P01..P06 supported')
+ p_spec=get_preset_spec(preset)
+ if not p_spec:raise ValueError(f'Unsupported preset {preset}; P01..P111 supported')
  if cfg.get('profile')!=f'qwen35_4b_b200_3000_{preset.lower()}_v1':raise ValueError('Wrong profile')
  if cfg['model']!={'base_model_id':MODEL,'revision':REVISION}:raise ValueError('Pinned Qwen3.5-4B required')
  if cfg.get('hardware')!='B200':raise ValueError('B200 required')
  if cfg['quantization']!={'load_in_4bit':False,'dtype':'bfloat16'}:raise ValueError('BF16 LoRA without base quantization required')
- p_spec=PRESETS[preset]
  expected={'learning_rate':p_spec['learning_rate'],'num_train_epochs':5,'per_device_train_batch_size':1,
   'gradient_accumulation_steps':16,'max_length':10240,'packing':False,'bf16':True,
   'gradient_checkpointing':True,'loss_policy':'final_assistant_only','seed':42,
-  'data_seed':42,'warmup_ratio':0.05,'lr_scheduler_type':'cosine','weight_decay':0.01,
-  'optim':'paged_adamw_8bit'}
+  'data_seed':42,'warmup_ratio':p_spec.get('warmup_ratio',0.05),'lr_scheduler_type':'cosine',
+  'weight_decay':p_spec.get('weight_decay',0.01),'optim':'paged_adamw_8bit'}
  if cfg['training']!=expected:raise ValueError(f'{preset} training contract changed; use a new reviewed profile')
  expected_lora={'r':p_spec['r'],'lora_alpha':p_spec['lora_alpha'],'lora_dropout':0.05,'bias':'none','scope':'language_model/all-linear'}
  if cfg['lora']!=expected_lora:raise ValueError(f'{preset} LoRA scope changed')

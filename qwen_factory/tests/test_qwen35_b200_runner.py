@@ -42,7 +42,7 @@ class Qwen35B200Tests(unittest.TestCase):
   cfg=self.cfg();cfg['training']['learning_rate']=.0002
   with self.assertRaises(ValueError):r.validate_config(cfg)
  def test_p01_through_p06_configs_pass_validation(self):
-  for pid in ('P01','P02','P03','P04','P05','P06'):
+  for pid in ('P01','P02','P03','P04','P05','P06','P07','P50','P111'):
    path=ROOT/f'configs/hyperparameters.qwen35_4b_3000.{pid}.yaml'
    self.assertTrue(path.is_file(),f'{pid} config missing')
    cfg=yaml.safe_load(path.read_text(encoding='utf-8'))
