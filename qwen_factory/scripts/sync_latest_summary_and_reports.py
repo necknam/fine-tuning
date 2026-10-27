@@ -82,3 +82,4 @@ with closing(dashboard_store.connect(qf_root)) as conn:
         qf_root / 'reports/candidate_versions.json',
     ])
     print('[+] Persisted candidate versions and prompts to Neon DB.')
+

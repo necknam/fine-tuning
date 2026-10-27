@@ -47,12 +47,12 @@ project_v2는 로컬 전용·push 금지다. 원래 project의 P01과 V2의 PT01
 | 모델 revision | `851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a` (공개 HF 메타데이터로 확인) |
 | GPU·정밀도 | B200 1장, sm100, BF16 LoRA, 기본모델 양자화 없음 |
 | P01 | LR 0.0001, r32/alpha64/dropout0.05, weight decay0.01 |
-| 학습 | batch1 × accumulation16, max7168, packing=false, 최종 assistant만 loss |
+| 학습 | batch1 × accumulation16, max10240, packing=false, 최종 assistant만 loss |
 | 에폭·저장 | 총5에폭 단일 cosine·warmup5%, 2·5에폭 어댑터 저장 |
 | 재개 | 에폭별 optimizer/scheduler/RNG 포함 checkpoint, 명시적 `--resume`만 |
 | 속도 시험 | 전체 길이분포에서 60건 선택(최단·최장 포함), 독립1에폭·4업데이트 |
 | 본학습 | 기본모델부터 새로 시작, 188업데이트/에폭·총940 예상 |
-| 비교 | 기존 `prompts.app_v2.jsonl` 고정10개, 원본/학습 답변을 2·5에폭 각각 저장 |
+| 비교 | 개정된 `prompts.app_v2.jsonl` 고정10개(4~12주, Case 7 12주, Case 10 일반 보고서 자동화, SHA `7c1565e2...`), 원본/학습 답변을 2·5에폭 각각 저장 |
 
 5에폭과 저장 시점은 이번 P01의 기준 설정이며 4B의 최적 에폭으로 확인된 값이 아니다. 시험 마지막 불완전 업데이트와 첫 컴파일 업데이트는 평균 step 시간에서 제외한다. 학습 업데이트 시간과 저장·비교·전체 경과는 구분한다. 60건 유한손실·GPU 예약 메모리95%미만·실제 step 측정·동일 데이터/설정/환경/코드 해시를 만족해야 본학습을 실행한다. 60건 학습 가중치를 본학습에 이어 쓰지 않는다.
 
@@ -96,7 +96,7 @@ python -u scripts/qwen35_b200_runner.py --phase all --execute
 
 release 필수값: `status: REVIEWED_CANDIDATE`, `blocking_findings: 0`, `records: 3000`, `data_sha256`, `original_sha256`, `rounds` 5개, `automatic_checks`, `provenance`. 각 round는 `round: 1..5`, `new_records: 300`, `status: REVIEW_COMPLETE`, 실제 `reviewed_sample_count > 0`, 세 역할 `maker/reviewer/inspector` 기록을 가진다. 각 기록·checks·provenance는 `{path: 프로젝트 상대경로, sha256: 파일SHA}` 형태이며 내용이 바뀌면 차단한다. checks 파일은 `status: PASS`, `checked_records: 3000`, provenance는 신규1,500행이다. 검토되지 않은 후보에 ready 값을 임의로 채워 실행하지 않는다.
 
-자료가 준비돼도 4B 토크나이저로 3,000건을 다시 인코딩해 prefix 마스크와 실제 길이를 전수 확인한다. 7168 초과는 자르거나 버리지 않고 오류로 멈춘다. 고정 평가 SHA `d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac`는 유지하고 학습 입력과 정확히 겹치면 차단한다.
+자료가 준비돼도 4B 토크나이저로 3,000건을 다시 인코딩해 prefix 마스크와 실제 길이를 전수 확인한다. 10240 초과는 자르거나 버리지 않고 오류로 멈춘다. 고정 평가 SHA `7c1565e23373411d1adf5ef50c31ac8842ad68b92fb9c3610440ea1cc411cafe`는 유지하고 학습 입력과 정확히 겹치면 차단한다.
 
 공식 모델·구조: https://huggingface.co/Qwen/Qwen3.5-4B · https://huggingface.co/Qwen/Qwen3.5-4B/blob/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/config.json
 
