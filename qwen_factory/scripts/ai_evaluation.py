@@ -182,7 +182,7 @@ revision: 수정 요청이 있을 때 요청한 부분을 실제로 바꿨는지
 '''
 
 def settings(root):
-    return app_settings.get(root,'OPENAI_API_KEY'), app_settings.get(root,'OPENAI_EVAL_MODEL','gpt-4.1-mini-2025-04-14')
+    return '', 'codex-direct-review'
 
 def schema(task=None):
     criterion={'type':'object','properties':{'score':{'type':['integer','null'],'minimum':1,'maximum':5},'reason':{'type':'string'},'evidence':{'type':'array','items':{'type':'string'},'maxItems':3}},'required':['score','reason','evidence'],'additionalProperties':False}
@@ -333,6 +333,7 @@ class EvaluationInProgress(ValueError):
 
 def evaluate(root,weight,report,opener=None,lease_owner=None,force=False):
     import hashlib
+    if not settings(root)[0]:raise ValueError('현재는 Codex 직접 검토 모드입니다. 유료 API 호출을 사용하지 않습니다.')
     _,model=settings(root)
     task=task_id(weight,report,model)
     # Transaction-scoped locks work with Neon's transaction pooler. Keep this
@@ -401,8 +402,8 @@ def render_panel(root,weight,group,case):
     import streamlit as st
     key,model=settings(root)
     report=group['cases'][case][1]
-    st.caption('OpenAI 모델: '+model+' · 엄격 평가 기준 v3 · 원문 근거·시작 단계 검증 · 사람 점수·보고서 제목과 별도로 저장합니다.')
-    st.caption('실행하면 선택한 입력 대화와 학습 모델 답변을 OpenAI API로 전송합니다. 키와 RunPod 인증정보는 보내지 않습니다. 호출 비용이 발생합니다.')
+    st.caption('평가 방식: Codex 직접 AI 검토 · 유료 API 미사용 · '+model+' · 엄격 평가 기준 v3 · 원문 근거·시작 단계 검증 · 사람 점수·보고서 제목과 별도로 저장합니다.')
+    st.caption('실제 입력과 답변을 직접 검토해 저장한 평가입니다. 사람이 작성한 평가와 구분합니다.')
     for result in check_numbers(report):st.write('• '+result)
     entry=latest(root,weight,report,model)
     action='이 입력 AI 평가 실행' if entry is None else '이 입력 AI 재평가 · 추가 호출'
@@ -413,7 +414,7 @@ def render_panel(root,weight,group,case):
             with st.spinner('AI가 답변을 검토하고 있습니다…'):
                 entry=evaluate(root,weight,report,force=entry is not None)
         except ValueError as error:st.error(str(error))
-    if not key:st.info('Cloud Secrets 또는 로컬 .env에 OPENAI_API_KEY를 설정하고 화면을 새로 실행하세요.')
+    if not key:st.info('유료 API 평가는 중지했습니다. 직접 검토 결과가 저장되면 여기에 표시됩니다.')
     if entry:
         st.metric('AI 항목 평균 · 사람 점수와 별개',f"{entry['average']:.2f} / 5" if entry['average'] is not None else '판단 불가')
         st.dataframe([{'항목':label,'점수':str(entry['review'][name]['score']) if entry['review'][name]['score'] is not None else '해당 없음/판단 불가','근거':entry['review'][name]['reason']} for name,label in DIMENSIONS.items()],hide_index=True,width='stretch')
@@ -472,7 +473,7 @@ _worker=globals().get("_worker")
 def ensure_worker(root):
     global _worker
     import subprocess,sys
-    if os.getenv('GROWPATH_DISABLE_AI_AUTO')=='1':return
+    if os.getenv('GROWPATH_DISABLE_AI_AUTO')=='1' or not settings(root)[0]:return
     if _worker is not None and _worker.poll() is None:return
     import time
     with closing(queue_db(root)) as db:

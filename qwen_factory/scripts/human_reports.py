@@ -41,6 +41,8 @@ def catalog(root, precision=None, cohort="report"):
     reports=[]
     for path in sorted((root/"reports").glob(pattern)):
         report = json.loads(path.read_text(encoding="utf-8"))
+        if report.get("test_sha256") != "76114e2c66c537374b7edac99660fe4e8e4fcc7dd5f2a003dfb175207675dc69":
+            continue
         # Historical B200 JSON omitted timestamps/model metadata; enrich only in memory.
         if not report.get("created_at"):
             report["created_at"]=""
@@ -58,7 +60,7 @@ def catalog(root, precision=None, cohort="report"):
         if weight:
             reports.append((path,report,manifest,weight))
     def conditions(report):
-        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort","packages","inference_runtime","inference_batch_size")},sort_keys=True)
+        return json.dumps({k:report.get(k) for k in ("test_sha256","quantization","generation","model","evaluation_cohort","packages","inference_runtime")},sort_keys=True)
     latest_sets={}
     for path,report,manifest,weight in reports:
         if weight not in latest_sets or report["created_at"]>latest_sets[weight][0]:
@@ -200,11 +202,13 @@ def render(root, weight, group):
     cfg=yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else None
     rows=["# "+heading,"",f"- 모델: {m['model']['base_model_id']}",f"- 모델 revision: {m['model']['revision']}",
           "- 학습 구분: "+("샘플 시험" if m.get("is_sample",True) else "실제 데이터 학습"),
-          "- 학습 데이터 해시: "+str(((m.get("dataset") or {}).get("train") or {}).get("sha256") or "이전 보고서 · 실행 설정 참조"),
+          "- 학습 데이터 해시: "+str(((m.get("dataset") or {}).get("train") or {}).get("sha256") or "학습 데이터 정보 없음 · 실행 설정 참조"),
           "- 검증 데이터 해시: "+str(((m.get("dataset") or {}).get("validation") or {}).get("sha256") or "검증 분할 없음 · 실행 설정 참조"),
           f"- run_id: {m['run_id']}",f"- weight_id: {weight}",f"- 저장 에포크: {m['trained_epoch']}",
           "- 평균: 각 입력의 최신 휴먼 점수를 입력별 동일 비중으로 평균; 미평가 입력 제외", "",
           "## 학습 파라미터", ""]
+    from report_parameters import summary as parameter_summary
+    rows += ["| 파라미터 | 실제 설정 |","| --- | --- |",*[f"| {k} | {v} |" for k,v in parameter_summary(cfg,m).items()],""]
     rows += ["```yaml",yaml.safe_dump(cfg,allow_unicode=True,sort_keys=False),"```",""] if cfg else ["실제 실행 설정을 아직 가져오지 않았습니다.",""]
     rows += ["## 휴먼 평가",""]
     summary=case_summary(root,weight,group)
