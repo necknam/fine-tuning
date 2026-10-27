@@ -1,20 +1,18 @@
 # 현재 상태와 핸드오프
 
-## 현재 요약 · 2026-10-28 (최신 갱신)
+## 현재 요약 · 2026-10-28 (최종 확정)
 
 변경 이유→실제 결과→후속 결정은 [파인튜닝 히스토리](파인튜닝_히스토리.md) 및 [최신 평가 결과 보고서](최신_평가_결과_보고서.md)를 먼저 읽는다.
 
-- **RunPod B200 4B 학습 및 전 가중치 신규 입력 실시간 GPU 추론 현황**: 인스턴스 `kq65qxmwibvy27`에서 `Qwen/Qwen3.5-4B` 확장 3,000건 학습 및 전수 신규 추론이 수행되었다.
-  - **P01**: 5에폭(940스텝) 학습 PASS 완료 및 Pre-P04 훅을 통해 새 입력 10종 기준 2/5에폭(20건) 실제 GPU 재추론 완료.
-  - **P02**: 5에폭(940스텝, 최종 loss ~0.312) 학습 및 새 입력 10종 기준 2/5에폭(20건) 실제 GPU 추론 **PASS 완료** (로컬/Neon DB/Downloads 반영 완료).
-  - **P03**: 5에폭(940스텝, 평균 loss `0.4746`, 최종 스텝 loss `0.2736`, 5,522초) 학습 및 새 입력 10종 기준 2/5에폭(20건) 실제 GPU 추론 **PASS 완료** (이메일 보고 완료).
-  - **Pre-P04 전수 신규 GPU 추론 완료 (총 230건)**: P03 종료 직후 `run_all_weights_new_input_inference.py`가 실행되어 `4B P01`(20건) 및 `27B` 17개 저장 가중치 전수(170건, 가중치당 270~370초 소요)에 대해 새 입력 10종으로 실제 GPU 추론을 100% 완수하고 `/workspace/qwen_factory/outputs/all_new_input_comparisons.zip` (297개 파일, 2,258,670 bytes)로 패키징 완료. 직후 **P04 본 학습 자동 진입** 확인.
-  - **종료 및 회수 안내**: 새벽 시간대 P04~P06 진행 후 현재 Pod `kq65qxmwibvy27`이 정지(Stopped) 상태임. Pod 재시작 시 `pull_and_evaluate_all_new_inferences.py`(Jupyter Contents REST 방식으로 패치 완료)를 실행하면 즉시 `all_new_input_comparisons.zip` 및 P04~P06 결과를 로컬과 Neon DB에 일괄 반영한다.
+- **RunPod B200 4B (P01~P03) 최종 완료 및 Pod 종료**: 인스턴스 `kq65qxmwibvy27`에서 `Qwen/Qwen3.5-4B` 확장 3,000건 학습이 **P01, P02, P03**까지 완료되었으며, 이후 Pod이 삭제/종료되어 로컬·Neon DB·Git에 보존된 결과를 최종 확정본으로 한다.
+  - **P01** (`LR=1e-4, r=32, alpha=64`): 5에폭(940스텝, 평균 loss `0.4492`, 5,522.3s) 학습 **PASS 완료** (`outputs/qwen35_4b_3000_P01/4c4ca588aa05ade6/full3000/result.json` 및 2/5에폭 비교 20건, 보고서 20건 로컬/Git 보존).
+  - **P02** (`LR=5e-5, r=32, alpha=64`): 5에폭(940스텝, 평균 loss `0.5086`, 최종 스텝 loss `0.312`, 5,833.5s) 학습 및 **신규 평가 입력 10종(4~12주) 실제 GPU 추론 20건 PASS 완료** (`outputs/qwen35_4b_3000_P02/2064b093494b22de/full3000/result.json` 및 2/5에폭 비교 20건, 보고서 20건, `Downloads/roadmap_case_1..10.md` 보존).
+  - **P03** (`LR=7.5e-5, r=32, alpha=64`): 5에폭(940스텝, 평균 loss `0.4746`, 최종 스텝 loss `0.2736`, 5,536.7s) 학습 **PASS 완료** (`outputs/qwen35_4b_3000_P03/b1b241390dc08897/full3000/result.json`에 940스텝 전 구간 시간 및 어댑터 파일 SHA 해시 영수증 보존).
 - **신규 평가 입력 10종 확정 및 동기화**: `data/eval/prompts.app_v2.jsonl` (SHA: `7c1565e23373411d1adf5ef50c31ac8842ad68b92fb9c3610440ea1cc411cafe`).
-  - 기간을 4~12주 랜덤(6, 8, 4, 10, 5, 7, 12, 9, 6, 8주)으로 현실화하고, Case 7을 12주 풀사이클 계획으로, Case 10을 사내 데이터 기반 정기 업무 보고서 자동 생성으로 변경. 로컬 및 RunPod 동기화 완료.
-- **27B·4B 전 가중치(24종, 222케이스) 개별 보고서 및 엄격 AI 평가 배포**:
-  - 각 모델·프리셋·에포크별로 마크다운 보고서를 개별 생성(`docs/model_evaluation_reports/`).
-  - 전문가 엄격 루브릭(`growpath_judge_v4_runtime_tasks`, `codex-direct-review`)으로 채점하여 Neon Cloud PostgreSQL(`qf_dashboard.ai_evaluations`, 누적 480건) 및 Streamlit 대시보드에 연동 완료.
+  - 기간을 4~12주 랜덤(6, 8, 4, 10, 5, 7, 12, 9, 6, 8주)으로 현실화하고, Case 7을 12주 풀사이클 계획으로, Case 10을 사내 데이터 기반 정기 업무 보고서 자동 생성으로 변경.
+- **27B(20종)·4B(4종) 전 가중치 개별 보고서 및 엄격 AI 평가 배포 완료**:
+  - 각 모델·프리셋·에포크별로 마크다운 보고서를 개별 생성(`docs/model_evaluation_reports/` 하위 25개 폴더).
+  - 전문가 엄격 루브릭(`growpath_judge_v4_runtime_tasks`, `codex-direct-review`)으로 채점하여 Neon Cloud PostgreSQL(`qf_dashboard.ai_evaluations`, `codex-direct-review` 25개 가중치 372건 / 누적 702건) 및 Streamlit 대시보드에 연동 완료.
 
 ## 이전 요약 · 2026-10-26
 
