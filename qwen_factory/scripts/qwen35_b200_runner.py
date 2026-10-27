@@ -10,7 +10,7 @@ import yaml
 MODEL='Qwen/Qwen3.5-4B'
 REVISION='851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a'
 ORIGINAL_SHA='998a9499a14f6c08de0526919567bcf5a9fcf31642f75aa24fca143c51265529'
-EVAL_SHA='d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac'
+EVAL_SHA='7c1565e23373411d1adf5ef50c31ac8842ad68b92fb9c3610440ea1cc411cafe'
 ROOT=Path(__file__).resolve().parents[1]
 
 def digest(path):
