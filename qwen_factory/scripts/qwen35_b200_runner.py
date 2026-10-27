@@ -303,6 +303,10 @@ def main():
   print(json.dumps({'status':'DATA_READY_GPU_UNVERIFIED','contract':contract,'records':len(rows),'sample_steps':4,'steps_per_epoch':188,'training_steps':940,'save_epochs':[2,5],'gpu_started':False}));return 0
  if args.resume and args.phase not in ('train','all'):raise ValueError('Resume is only for full training')
  with gpu_guard(ROOT):
+  if 'P04.yaml' in args.config and not (ROOT/'outputs/new_input_re_inference_done.json').exists():
+   print('>>> [Pre-P04 Hook] Running full real GPU re-inference on new 10 inputs for 4B P01 and all 27B weights before starting P04 <<<',flush=True)
+   import run_all_weights_new_input_inference
+   run_all_weights_new_input_inference.main()
   runtime=runtime_info(cfg)
   import shutil
   cache=Path(cfg['model_cache']);cache.mkdir(parents=True,exist_ok=True)
