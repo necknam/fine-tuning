@@ -47,7 +47,7 @@ def validate_config(cfg):
  if cfg['quantization']!={'load_in_4bit':False,'dtype':'bfloat16'}:raise ValueError('BF16 LoRA without base quantization required')
  p_spec=PRESETS[preset]
  expected={'learning_rate':p_spec['learning_rate'],'num_train_epochs':5,'per_device_train_batch_size':1,
-  'gradient_accumulation_steps':16,'max_length':7168,'packing':False,'bf16':True,
+  'gradient_accumulation_steps':16,'max_length':10240,'packing':False,'bf16':True,
   'gradient_checkpointing':True,'loss_policy':'final_assistant_only','seed':42,
   'data_seed':42,'warmup_ratio':0.05,'lr_scheduler_type':'cosine','weight_decay':0.01,
   'optim':'paged_adamw_8bit'}
