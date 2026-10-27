@@ -1,5 +1,18 @@
 # 현재 상태와 핸드오프
 
+## 현재 요약 · 2026-10-26
+
+변경 이유→실제 결과→후속 결정은 [파인튜닝 히스토리](파인튜닝_히스토리.md)를 먼저 읽는다. 기존27B의 GPU/정밀도 변화와 새4B 모델 교체, 개선v4 품질gate실패와 별도승인 원본P02~P06 저장전용완료를 구분했다. 중간 병목·실측·미검증 부분도 한 문서에 연결했다.
+
+- 새 학습 목표: 동일 B200, Qwen3.5-4B, 확장3000 P01. 3000건 릴리즈 및 check 통과 (DATA_READY_GPU_UNVERIFIED). 배포 번들 빌드 완료 (D:/qwen_factory_local/bundles/qwen35_4b_3000_P01.zip, SHA: 959da5a7...). RunPod 시작 전 모든 로컬 선행 작업 완료.
+- 데이터: 원본1500 보존(SHA 998a9499...). 5개 라운드(각 300건) 결합 총 3,000건 정식 배포 완료 (expanded_3000/all.jsonl, SHA: d80e09e8..., provenance 1,500행). 5개 라운드 검수 아티팩트 및 release_manifest.json (SHA: 4381a8d5...) 생성 완료.
+- 로컬: Miniforge/llm_env 제어환경 준비 및 3,000건 데이터 release, 러너 check, 패커 번들 생성까지 모든 로컬 선행 작업 완료. RunPod Pod는 사용자 직접 구동 전까지 완벽한 대기 상태 유지.
+- 로컬 DB: 합성100+기존5=105명·001~020·복원검증 완료. TEST_MANUAL100 비밀번호 사용자지정 공통값 적용·검증. 최신덤프 growpath_local_100_passwords_20261026.dump이며 전달용폴더ZIP에는 database/data/exports/growpath_latest.dump 이름으로 담았다. 실제 DB 덮어쓰기와 덤프파일교체는 구분한다.
+- 기존 원격 관리상태는 오늘 재조회하지 않았다. 새Pod시작/생성/삭제·이메일·Git push는 이번 준비에서 수행하지 않는다.
+
+아래 2026-10-25 요약과 상세 실행중 기록은 과거 시점이다.
+
+
 ## 최신 상태 요약 · 2026-10-25 문서 정리
 
 아래는 저장소의 2026-10-24 최종 기록을 정리한 상태다. 2026-10-25에 Pod·HF·Cloud를 새로 조회하거나 재검증한 결과는 아니다.
@@ -275,3 +288,13 @@ DB분리 후 회귀40건 통과. 전체복원 검증 통과. 실제 공통10개 
 ## 2026-10-23 16:15 KST 실제 저장 확인
 
 P01은300/470스텝·3.192에포크로 진행 중이며 최근 실제23초/스텝, 남은 순수학습 약65분이다. 2에포크 가중치4166f3e6-18ac-4421-8cb8-1e557eba5c6c(933,974,032바이트)는 HF commit73f3e8bfa041f2baa90e50ad6bb3f3481e77f73f로 업로드됐고 manifest 포함7개 파일의 외부 내용 해시를 검증했다. 큰 파일은 HF LFS 내용 SHA256, 나머지는 원격 다운로드 바이트 해시로 비교했다. 현재 PC에 모델을 다운로드하거나 GPU를 사용하지 않았다. checkpoint250/282/300의 adapter·optimizer·scheduler·RNG·trainer state 존재와 실행 중 핵심 코드 해시 일치를 확인했다. 이는5에포크 완료나 고정10개 품질 판정 완료를 의미하지 않는다.
+
+
+## 2026-10-26 로컬 DB·Miniforge 최신화
+
+사용자 승인으로 기존 시드 규칙을 이용해 TEST_MANUAL 100명 재구성(기존9+신규91), 기존 사용자5명 보존. 부서별20명·부서장1명. 이전 Cloud 원본의 완전 복원이 아니며 신규91명 비밀번호 미설정. 001~020 적용, 기존5명의 사번 NULL은 보존하고 검증 경고. llm_env Python3.12.13 / growpath_db PostgreSQL17.11·pgvector0.8.2. 최신 덤프 database/data/exports/growpath_local_100_20261026.dump, 변경전 before_local_refresh_20261026.dump. 상세 실행은 database/RESTORE_OTHER_PC.md. Cloud 쓰기·Git push 없음.
+
+
+## 2026-10-26 최신 사용자 지정: Qwen3.5-4B / B200 / 3000 P01
+
+B200 유지·모델4B 변경 승인으로 별도 qwen35_b200_runner.py 및 hyperparameters.qwen35_4b_3000.P01.yaml 추가. 기존27B 실행/가중치/프리셋 변경 없음. BF16 LoRA LR1e-4/r32a64, batch1acc16/max7168, 독립60건 시험 후 새 기본모델5에폭 단일cosine·2/5저장·각동일10개비교. 새GPU/다운로드/업로드/push 없음. 신규7+기존9 검사16개 통과. check는 BLOCKED_DATA_NOT_READY: 확장1500 제작/5회검토 미완료. GPU 실측 미완료. 정확한 실행/release 계약은 FINETUNING_GUIDE.md 마지막 2026-10-26 절. 사용자가 Pod를 열기 전 데이터 release·토큰검사 준비를 먼저 완료할 것.

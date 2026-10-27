@@ -16,3 +16,8 @@ Cloud는 necknam/fine-tuning main의 최상위 streamlit_app.py다. 로컬 .env�
 [실행·비교·의존성](../docs/FINETUNING_GUIDE.md) · [실험 DB](../docs/FACTORY_DATABASE.md) · [현황](../docs/CODEX_HANDOFF.md)
 
 B200 고속 FLA 오류 수정 환경은 기본 GPU 요구사항 설치 후 `python -m pip install --no-deps -r requirements-kernel-b200.txt`로 검증된 Triton3.6만 별도 적용한다. Torch2.8의 기본 Triton 핀과 구분하며 [전환 근거](../docs/B200_고속커널_전환_20261023.md)를 따른다.
+
+
+## Qwen3.5-4B · B200 · 확장3000 P01 (2026-10-26)
+
+별도 설정 `configs/hyperparameters.qwen35_4b_3000.P01.yaml`, 실행 `scripts/qwen35_b200_runner.py`. 준비 확인은 `python scripts/qwen35_b200_runner.py --phase check`. 현재 데이터 5회 검토 release 미완료로 학습은 차단된다. 60건 시험 통과 후 새 기본모델 5에폭·2/5 저장·동일10개 비교이며, 기존27B 버튼/러너와 구분한다. 전체 실행·재개·한계와 release 계약은 프로젝트 docs/FINETUNING_GUIDE.md의 2026-10-26 절을 따른다.

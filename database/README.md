@@ -1,6 +1,8 @@
-# 다른 PC로 전달받은 경우
+# 현재 로컬 상태 — 2026-10-26
 
-이 ZIP은 `database/` 전체 복사본이며 실제 `.env`·데이터·백업을 포함합니다. 지정된 수신자에게만 직접 전달하세요. 새 PC의 준비와 최신 DB 복원은 [새 PC 실행 안내](RESTORE_OTHER_PC.md)를 먼저 따릅니다. `data/exports/growpath_enrollment_20261022.dump`와 같은 이름의 manifest가 최신 전달 DB입니다. 기존 날짜 백업은 과거 상태입니다.
+이 PC의 Miniforge `llm_env`와 로컬 PostgreSQL `growpath`를 기준으로 최신화했다. **가상 직원 100명 + 기존 사용자 5명 = 총 105명**, 5개 대상 부서 각 20명·부서장 각 1명이다. 마이그레이션 001~020 적용, 실제 DB 기준 ERD·구조 문서 갱신 및 최신 덤프 복원 검증을 통과했다. 최신 덤프는 `data/exports/growpath_local_100_passwords_20261026.dump`다.
+
+**[Miniforge 실행·복원 안내](RESTORE_OTHER_PC.md)**를 먼저 따른다. `.venv` 생성은 필요 없다. 아래 날짜별 Cloud·전달본 절은 과거 이력이며 현재 상태보다 우선하지 않는다. 이전 Cloud 100명의 완전 복원이 아닌 사용자 승인 시드 재구성이다. 테스트 직원 100명의 공통 로그인 비밀번호를 사용자 지정값으로 설정하고 100건 검증했다. 기존 사용자 5명의 사번 누락은 추정하지 않고 검증 경고로 보존했다.
 
 # PostgreSQL 관리와 AI·IT 학습자료 자동 적재
 
@@ -8,7 +10,7 @@
 
 ## 처음 한 번 설정
 
-Python 3.12 환경에서 이 README가 있는 `database` 폴더를 엽니다.
+Miniforge `llm_env`(Python 3.12) 환경에서 이 README가 있는 `database` 폴더를 엽니다. PowerShell에서 `conda`가 인식되지 않으면 위 실행 안내의 `$py` 절대 경로를 사용합니다.
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -26,7 +28,7 @@ python scripts/db.py verify
 python load_data.py
 ```
 
-Windows에서는 Python 환경을 준비한 뒤 **`run_catalog.cmd`를 더블클릭**해도 됩니다. `database/.venv/Scripts/python.exe`가 있으면 해당 환경을, 없으면 PATH의 `python`을 사용합니다.
+Windows에서는 Python 환경을 준비한 뒤 **`run_catalog.cmd`를 더블클릭**해도 됩니다. `%USERPROFILE%/miniforge3/envs/llm_env/python.exe`를 먼저 사용하고, 없으면 기존 `.venv`, 마지막으로 PATH의 `python`을 사용합니다.
 
 실행 순서는 다음과 같습니다.
 
@@ -165,9 +167,12 @@ ERD와 DB 구조 문서는 `python scripts/refresh_db_documents.py`로 최신 �
 
 사번은 TM26-부서ID-순번이며 NULL·공백·기관별 중복이 없다. 직급은 기존 2급(을)~5급, 직무·기술·자격은 실제 마스터 FK로 연결하며 시드 20261023으로 배정한다. 새 직원은 직무 연관 기술을 최소 1개 포함해 보유 기술 2~4개, 자격 0~2개와 가상 학력·날짜·프로젝트 설명을 가진다. 합성 정보이며 실제 역량이나 실제 이력이 아니다. 공통 테스트 비밀번호의 Argon2id 설정·검증은 아래 비밀번호 설정 항목에 기록했다.
 
-실제 팀원 5명의 시트 정보는 추가하지 않았고 로컬 DB도 수정하지 않았다. 기존 9명과 고정 10개 평가의 직원 배정은 유지했다. 새 가데이터는 Supabase에만 존재하므로 현재 로컬과 직원 행 수는 다르다. 재현 도구: database/scripts/seed_cloud_test_workforce.py --apply; 기본 실행은 계획 조회이며 기존 행을 삭제·덮어쓰지 않는다. 읽기 전용 Cloud 계정에서 100명 조회를 확인했다.
+실제 팀원 5명의 시트 정보는 추가하지 않았고 로컬 DB도 수정하지 않았다. 기존 9명과 고정 10개 평가의 직원 배정은 유지했다. 당시 새 가데이터는 Supabase에만 존재했다. 2026-10-26에는 별도 승인으로 로컬 100명을 재구성했으며 이전 원본과 완전 일치한다고 보장하지 않는다. 재현 도구: database/scripts/seed_cloud_test_workforce.py --apply; 기본 실행은 계획 조회이며 기존 행을 삭제·덮어쓰지 않는다. 읽기 전용 Cloud 계정에서 100명 조회를 확인했다.
 
 
 ### 테스트 계정 로그인 비밀번호 설정
 
 Supabase TEST_MANUAL 100명 전체에 사용자 지정 공통 테스트 비밀번호를 Argon2id로 개별 솔트 해싱해 적용하고 100건 모두 검증했다. 비밀번호 평문은 문서·DB·수정 코드에 저장하지 않는다. 로컬 DB와 TEST_MANUAL 외 계정은 수정하지 않았다. 앞 절의 신규 91명 비밀번호 미설정 상태는 이 작업으로 해소됐다.
+
+
+검증 완료(2026-10-26): 별도 growpath_verify_20261026 DB에 실제 복원, 50테이블·12,519행·210제약·자료/규정 벡터 검사 PASS. 회귀 테스트 4/4 PASS. 가상 직원 기술 293행·자격 96행·학력 100행. 검증 기록은 data/local_db/local_refresh_verification.json. 복원 검증 DB는 조사·비교용으로 보존했다.

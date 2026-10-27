@@ -1,47 +1,76 @@
-# 새 PC 실행 순서 (Windows x64)
+# 로컬 DB 설치·복원 — Miniforge 기준
 
-압축을 풀어 `database` 폴더 안에서 PowerShell을 엽니다. Python 3.12와 Miniforge가 필요합니다. [Miniforge 설치 안내](https://github.com/conda-forge/miniforge)를 따릅니다.
+2026-10-26 이 PC에서 로컬 PostgreSQL을 실행하고 마이그레이션 001~020 및 가상 직원 100명을 확인했다. 업무 DB는 `127.0.0.1:55433/growpath`다. 기존 사용자 5명을 포함한 직원 총수는 105명이다.
 
-## 1. Python 및 PostgreSQL 준비
+## 1. 환경 준비
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-powershell -ExecutionPolicy Bypass -File scripts/install_postgres.ps1
-```
-
-설치 도구는 Miniforge의 `growpath_db` 환경에 PostgreSQL 17.11과 포함된 pgvector 0.8.2 파일을 준비합니다. pgvector 파일의 manifest 해시도 검사합니다. Conda 설치 위치가 다르면 `-CondaExe "실제경로/conda.exe"`를 지정합니다.
-
-## 2. 전달자의 PC 경로·실행 DB 파일을 보관하고 새로 복원
-
-ZIP에 실행 DB의 내부 파일과 실제 설정도 들어 있습니다. 다른 PC에서는 이 내부 파일을 바로 실행하기보다 포함된 논리 백업을 새 환경에 복원하는 방법을 권장합니다. 아래 이름 변경은 전달 파일을 삭제하지 않고 보관합니다. 이미 실행 중인 해당 PostgreSQL이 있다면 먼저 중지합니다.
+프로젝트 최상위 PowerShell에서 실행한다. 이 PC에는 Python 3.12.13 `llm_env`와 PostgreSQL용 `growpath_db` Miniforge 환경이 이미 있다. `.venv`를 추가로 만들지 않는다. 다른 PC에서 `llm_env`가 없을 때만 `conda create -n llm_env python=3.12 pip -y`로 생성한다.
 
 ```powershell
-# 같은 보관 이름이 이미 있으면 덮어쓰지 말고 다른 이름을 선택
-Rename-Item -LiteralPath .env.local -NewName .env.local.sender
-Rename-Item -LiteralPath data/local_db/postgres -NewName postgres.sender
-
-.\.venv\Scripts\python.exe scripts/restore_db.py restore --archive data/exports/growpath_enrollment_20261022.dump --initialize --write-config
+cd C:\final_team2\project
+$py = "$env:USERPROFILE\miniforge3\envs\llm_env\python.exe"
+& $py -m pip install -r database/requirements.txt
+# PostgreSQL이 없는 새 PC에서만 설치. 이미 준비된 이 PC에서는 생략한다.
+powershell -ExecutionPolicy Bypass -File database/scripts/install_postgres.ps1
+cd database
 ```
 
-복원 도구가 출력하지 않는 비밀번호를 입력받습니다. 새 PC에서 사용할 PostgreSQL 비밀번호를 입력합니다. `.env.local`은 새 PC의 PostgreSQL 경로·비밀번호·DB URL로 생성됩니다. 기존 `.env.local`이나 실행 DB 폴더가 없으면 해당 Rename-Item만 생략합니다. 새 DB는 `127.0.0.1:55433`, 이름은 `growpath`입니다. 다른 서비스가 이 포트를 점유하면 해당 서비스를 확인하고 복원 명령에 다른 `--port`를 명시합니다. 기존 DB를 덮어쓰지 않습니다.
+Python 패키지는 `llm_env`, PostgreSQL 17.11 실행 파일은 `growpath_db/Library/bin`에 있다. pgvector 0.8.2는 설치 스크립트가 포함된 파일의 해시를 검사해 배치한다. 기본 Miniforge 위치가 다르면 `$py`와 `-CondaExe`, 복원의 `--pg-bin`을 실제 경로로 지정한다.
 
-기본 Miniforge 위치가 아니면 복원 명령에 `--pg-bin "실제 PostgreSQL Library/bin 경로"`도 지정합니다. 실제 키는 `.env`에 포함돼 있으므로 공유 범위를 제한하고 필요하면 수신자의 키로 교체합니다. 분류 모델은 `gpt-6-luna`, 임베딩은 `text-embedding-3-small`입니다. 이 모델들에 대한 API 사용 권한이 필요합니다.
-
-## 3. 복원 확인 및 이후 실행
+## 2. 이 PC의 기존 DB 실행
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/db.py verify
-.\.venv\Scripts\python.exe scripts/restore_db.py restore --archive data/exports/growpath_enrollment_20261022.dump --verify-only
+& $py scripts/local_db.py start
+& $py scripts/local_db.py status
+& $py scripts/db.py verify
 ```
 
-복원 도구는 manifest의 SHA-256, 테이블 건수, 제약조건, 벡터 자기 유사도를 검사합니다. `PASS`를 확인합니다. 이후 DB 중지·시작은 다음과 같습니다.
+이 PC에서는 이미 복원·갱신했으므로 `--initialize --write-config`를 다시 실행하지 않는다. `.env.local`은 이 PC 연결용이고 기존 키·연결 비밀번호는 보존했다. 주소·비밀번호를 Git에 올리지 않는다.
+
+## 3. 다른 PC 또는 별도 DB에 최신 덤프 복원
+
+최신 파일은 `data/exports/growpath_local_100_passwords_20261026.dump`와 같은 이름의 `.manifest.json`이다. 2026-10-21/22 덤프와 이전 `growpath_latest.dump`는 과거 상태다.
+
+실행 DB 폴더와 `.env.local`이 없는 새 PC에서만:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/local_db.py stop
-.\.venv\Scripts\python.exe scripts/local_db.py start
+& $py scripts/restore_db.py restore --archive data/exports/growpath_local_100_passwords_20261026.dump --initialize --write-config
 ```
 
-최신 DB를 그대로 사용하려면 재수집을 실행할 필요가 없습니다. 새로 수집·심사·적재하려면 `run_catalog.cmd`를 더블클릭합니다. 기본 실행은 DB를 초기화하지 않고 AI·IT 자료를 갱신합니다. 초기화는 `--reset-catalog`를 명시한 경우에만 실행합니다. 자세한 옵션은 README.md를 참고합니다.
+기존 서버에 비교용 새 DB를 만들 때:
 
-새 PC의 실제 복원은 수신자가 실행해야 합니다. 이 안내를 작성하면서 수신 PC에서 복원했다고 표시하지 않습니다.
+```powershell
+& $py scripts/restore_db.py restore --archive data/exports/growpath_local_100_passwords_20261026.dump --database growpath_review
+```
+
+기존 DB·실행 폴더·`.env.local`은 자동 덮어쓰지 않는다. 비교 DB 검증은 `--database growpath_review --verify-only`와 같은 덤프를 지정한다. 비밀번호는 `.env.local` 또는 터미널 입력으로 받으며 출력하지 않는다. `.env.local`은 비교 DB로 자동 전환하지 않는다.
+
+## 4. 가상 직원 100명과 보존 범위
+
+AI데이터센터·인재경영실·업무시스템팀·인프라운영팀·데이터운영팀에 각 20명, 부서장 각 1명이다. 기존 TEST_MANUAL 9명의 ID·이름·이메일·비밀번호 해시를 보존하고 프로필·배정을 재구성했으며 신규 91명을 추가했다. 기술 2~4개, 자격 0~2개, 가상 학력·날짜·프로젝트 설명을 기존 마스터 FK로 연결했다. 실제 사용자 5명은 행 전체를 변경하지 않았다.
+
+이전 Cloud 100명 원본은 현재 연결에 없어서 사용자 승인으로 기존 시드 20261023과 부서 배정 규칙을 이용해 재구성했다. 이전 Cloud의 모든 프로필·ID와 일치하는 원본 복원이 아니다. 테스트 직원 100명의 비밀번호는 사용자 지정 공통값으로 통일하고 개별 솔트 Argon2id 해시 100건을 검증했다. 기존 공통 Cloud 비밀번호가 그대로 통한다고 가정하지 않는다. 실제 팀원 시트를 적재하거나 새 AI 추천·보고서를 생성한 작업도 아니다.
+
+```powershell
+# 미리보기. 완료된 100명이면 ALREADY_COMPLETE이며 다시 생성하지 않는다.
+& $py scripts/seed_local_test_workforce.py
+# 최초 재구성이 필요한 로컬 DB에서만:
+& $py scripts/seed_local_test_workforce.py --apply
+```
+
+기존 사용자 5명의 사번은 원래 NULL이므로 추정값을 넣지 않았다. 020의 `employees_number_required` CHECK는 이 과거 누락만 NOT VALID로 보존하고 신규·수정 행에는 적용한다. `verify`는 누락 5건을 `legacy_constraint_warnings`로 명시한다. 그 밖의 미검증 제약은 실패 처리한다.
+
+## 5. 문서·백업 갱신
+
+```powershell
+& $py scripts/refresh_db_documents.py
+& $py scripts/restore_db.py backup --output data/exports/growpath_local_새날짜.dump
+& $py scripts/local_db.py stop
+```
+
+ERD 두 경로의 기존 테마와 통합 보고서의 학습 절은 유지하고 실제 DB 구조·건수만 갱신한다. 덤프 manifest는 SHA-256·테이블 건수·제약·확장·뷰를 기록하며 복원 시 대조하고 벡터 자기 유사도를 검사한다. 기존 사용자와 인증 해시가 포함된 전체 덤프는 지정 수신자에게만 전달하며 Git push하지 않는다.
+
+변경 전 백업: `data/exports/before_local_refresh_20261026.dump`. 실제 접속 설정은 `.env.local`, 상세 구조는 프로젝트 `docs/DATABASE.md`, ERD는 `database/docs/ERD_최종.html`을 참고한다. 권한은 서버에서 별도로 검증해야 하며 구조 검사 성공이 추천 품질 합격을 뜻하지 않는다.
+
+
+검증 완료(2026-10-26): 별도 growpath_verify_20261026 DB에 실제 복원, 50테이블·12,519행·210제약·자료/규정 벡터 검사 PASS. 회귀 테스트 4/4 PASS. 가상 직원 기술 293행·자격 96행·학력 100행. 검증 기록은 data/local_db/local_refresh_verification.json. 복원 검증 DB는 조사·비교용으로 보존했다.

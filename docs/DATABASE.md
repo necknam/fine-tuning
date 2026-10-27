@@ -1,4 +1,4 @@
-> 현재 운영 테스트 데이터는 Supabase 기준입니다. 아래 public 스키마 구조·건수는 로컬 참고 스냅샷이며 로컬 DB 완성을 의미하지 않습니다.
+> 2026-10-26 로컬 PostgreSQL 실측: 가상 직원 100명·기존 사용자 5명, 총 105명. 마이그레이션 001~020 적용. 이전 Cloud 원본과 완전 일치하는 복원이 아닌 승인된 시드 재구성이다.
 
 # 로컬 DB 사용 안내
 
@@ -9,14 +9,15 @@ DB는 Docker 없이 PostgreSQL 17.11 + pgvector 0.8.2를 사용한다. 업무 �
 최상위 project 안의 database 폴더에서 실행한다. 로드맵 UI·에이전트·학습 데이터 생성 코드는 이 저장소에서 제거했다. 기존 테이블과 DB 저장 API는 유지한다.
 
 ```powershell
-python scripts/local_db.py start
-python scripts/local_db.py status
-python scripts/db.py verify
-python -m src.db.resource_vectors status
-python -m src.db.regulation_vectors status
+$py = "$env:USERPROFILE\miniforge3\envs\llm_env\python.exe"
+& $py scripts/local_db.py start
+& $py scripts/local_db.py status
+& $py scripts/db.py verify
+& $py -m src.database.vectors.resource_vectors status
+& $py -m src.database.vectors.regulation_vectors status
 ```
 
-중지는 `python scripts/local_db.py stop`, 백업은 `python scripts/local_db.py backup --output 원하는경로.dump`다. 물리 파일은 `data/local_db/postgres` 전체이며 개별 파일을 삭제하거나 편집하지 않는다. 연결은 `.env.local`, 실행 파일은 그 안의 `POSTGRES_BIN_DIR` 설정을 사용한다.
+중지는 `& $py scripts/local_db.py stop`, 백업은 `& $py scripts/local_db.py backup --output 원하는경로.dump`다. 물리 파일은 `data/local_db/postgres` 전체이며 개별 파일을 삭제하거나 편집하지 않는다. 연결은 `.env.local`, 실행 파일은 그 안의 `POSTGRES_BIN_DIR` 설정을 사용한다.
 
 ## PyCharm 접속
 
@@ -47,7 +48,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 
 부서장은 담당 부서·하위 부서 프로젝트를 조회하고 본인 코멘트를 작성·수정·삭제할 수 있으며, 일반 직원의 로드맵이나 완료 체크를 수정할 수 없다. 직원 계정 정보를 조회하는 API는 password_hash를 반환하지 않는다.
 
-신규 설치는 `python scripts/db.py migrate`, 구조 검증은 `python scripts/db.py verify`를 사용한다. 벡터 테이블·수집 이력 테이블도 설치 단계에 포함된다. 실제 DB 기준 메타데이터는 src/database/catalog.current.json, 이전 패키지를 읽기 위한 메타데이터는 catalog.json이다. 이전 001~008 마이그레이션 파일은 적용 후 수정하지 않는다.
+신규 설치는 `& $py scripts/db.py migrate`, 구조 검증은 `& $py scripts/db.py verify`를 사용한다. 벡터 테이블·수집 이력 테이블도 설치 단계에 포함된다. 실제 DB 기준 메타데이터는 src/database/catalog.current.json, 이전 패키지를 읽기 위한 메타데이터는 catalog.json이다. 이전 001~008 마이그레이션 파일은 적용 후 수정하지 않는다.
 
 스킬 36·강좌 116·도서 334·자격증 26·직무 6·전공 7건, 자료 벡터 525개를 실제 조회했다. 규정 청크 벡터 1,410개는 별도 테이블에 유지한다. 두 벡터 테이블은 같은 검색 대상으로 무조건 혼합하지 않는다.
 
@@ -69,7 +70,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 
 ## 각 테이블의 현재 구조
 
-2026-10-23 실제 로컬 DB 조회 기준. 호환 뷰는 테이블 목록에 포함하지 않는다.
+2026-10-26 실제 로컬 DB 조회 기준. 호환 뷰는 테이블 목록에 포함하지 않는다.
 
 ### `growpath_legacy.agent_generations` · 71행
 
@@ -222,7 +223,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 | `mapping_evidence` | jsonb | NO |
 | `fetched_at` | timestamp with time zone | NO |
 
-### `growpath_meta.schema_migrations` · 19행
+### `growpath_meta.schema_migrations` · 20행
 
 기본키: PRIMARY KEY (version)
 
@@ -449,7 +450,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 
 - `CHECK (round_number > 0)`
 
-### `public.employee_certifications` · 0행
+### `public.employee_certifications` · 96행
 
 기본키: PRIMARY KEY (employee_id, certification_id)
 
@@ -463,7 +464,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 - `FOREIGN KEY (certification_id) REFERENCES certifications(cert_id)`
 - `FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE`
 
-### `public.employee_education_records` · 0행
+### `public.employee_education_records` · 100행
 
 기본키: PRIMARY KEY (education_record_id)
 
@@ -510,7 +511,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 - `CHECK (display_order >= 1 AND display_order <= 3)`
 - `CHECK (prompt_text IS NULL OR length(btrim(prompt_text)) > 0)`
 
-### `public.employee_skills` · 0행
+### `public.employee_skills` · 293행
 
 기본키: PRIMARY KEY (employee_id, skill_id)
 
@@ -524,7 +525,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 - `FOREIGN KEY (employee_id) REFERENCES employees(employee_id) ON DELETE CASCADE`
 - `FOREIGN KEY (skill_id) REFERENCES skill_tags(skill_id)`
 
-### `public.employees` · 14행
+### `public.employees` · 105행
 
 기본키: PRIMARY KEY (employee_id)
 
@@ -565,6 +566,7 @@ SELECT * FROM public.skill_tags ORDER BY skill_id;
 - `CHECK (hire_date IS NULL OR department_start_date IS NULL OR department_start_date >= hire_date)`
 - `CHECK (job_grade_id IS NULL OR institution_id IS NOT NULL)`
 - `CHECK (NOT is_department_head OR department_id IS NOT NULL)`
+- `CHECK (employee_number IS NOT NULL AND employee_number !~ '^[[:space:]]*$'::text) NOT VALID`
 - `CHECK (password_hash IS NULL OR password_hash ~~ '$argon2id$%%'::text)`
 - `CHECK (planned_project_description IS NULL OR length(btrim(planned_project_description)) > 0)`
 - `CHECK (unlisted_certifications IS NULL OR length(btrim(unlisted_certifications)) > 0)`
@@ -1172,21 +1174,12 @@ END)`
 
 ## 실제 적재·활용 점검
 
-2026-10-23 최신 로컬 DB 직접 조회: 현재 로컬 DB는 실제 테이블 50개·FK 85개다. 호환 뷰는 테이블 수에 포함하지 않는다. 강좌 116·도서 334·자격증 26·직무 6·전공 7·스킬 36건. 자료 벡터 525개·규정 벡터 1410개다. 저장 건수와 추천 가능 건수·수집 완료 여부는 구분한다.
+2026-10-26 최신 로컬 DB 직접 조회: 현재 로컬 DB는 실제 테이블 50개·FK 85개다. 호환 뷰는 테이블 수에 포함하지 않는다. 강좌 116·도서 334·자격증 26·직무 6·전공 7·스킬 36건. 자료 벡터 525개·규정 벡터 1410개다. 저장 건수와 추천 가능 건수·수집 완료 여부는 구분한다.
 
-직원 14명은 유지했다. 부서 14개에는 기존 5개와 시트용 9개(상위 조직 2개 포함)가 있다. 부서 마스터 등록은 기존 직원 소속의 변경이나 시트 직원 정보의 실제 적재를 의미하지 않는다. 2급(을)·3급·4급·5급 ID는 각각 9·7·4·6이다.
+직원 105명은 실제 조회값이다. 부서 14개에는 기존 5개와 시트용 9개(상위 조직 2개 포함)가 있다. 부서 마스터 등록은 기존 직원 소속의 변경이나 시트 직원 정보의 실제 적재를 의미하지 않는다. 2급(을)·3급·4급·5급 ID는 각각 9·7·4·6이다.
 
-016~019 마이그레이션으로 직원 날짜·설문 전 프로젝트 설명·미등재 자격 원문·학력 입학/졸업일을 추가했다. 새 날짜는 nullable DATE이며 미확인 날짜를 추정하지 않는다. 각 날짜 쌍의 종료/배치 날짜가 시작 날짜보다 빠를 수 없다.
+016~020 마이그레이션으로 직원 날짜·설문 전 프로젝트 설명·미등재 자격 원문·학력 입학/졸업일을 추가했다. 새 날짜는 nullable DATE이며 미확인 날짜를 추정하지 않는다. 각 날짜 쌍의 종료/배치 날짜가 시작 날짜보다 빠를 수 없다.
 
 시트의 직무·직급·부서 ID는 최신 마스터로 조회한다. 이름은 화면 표시, FK ID는 직원 저장에 사용한다. 직원별 미등재 자격은 공통 자격증 마스터와 분리한다. 날짜는 기본 달력 선택과 YYYY-MM-DD 직접 입력을 유지한다. 별도 날짜입력 탭은 사용자 요청으로 제거했다.
 
-Supabase growpath_hr에는 TEST_MANUAL 직원 100명이 있다. 5개 부서에 각 20명, 부서장 각 1명이다. 실제 팀원 시트 정보 적재는 보류하며, 로컬 DB는 사용자가 직접 관리한다. 아래 로컬 테이블 건수는 과거 스냅샷으로 Cloud의 현재 건수와 구분한다. 로컬의 잘못된 시트 정보 적재는 직전 백업과 동일하게 복구했다. 위의 2026-10-21 백업·복원 수치는 과거 검증 이력이며 현재 DB 전체 백업의 검증 결과로 사용하지 않는다. 변경 이유와 상태는 [최상위 변경점 문서](../시트_DB_변경점.md)를 참고한다.
-
-
-## 사번 필수 입력 제약 추가 — 2026-10-23
-
-로그인 식별자로 사용할 employees.employee_number에 NULL·빈 문자열·공백 문자열 금지 CHECK를 추가했다(020_employee_number_required.sql). 기관별 사번 중복 금지 UNIQUE는 유지한다.
-
-Supabase growpath_hr는 기존 9명에 누락이 없어 CHECK 검증 및 NOT NULL 적용 완료. 로컬은 실제 직원 5명의 사번이 NULL이므로 기존 행을 보존하고 NOT VALID CHECK로 신규·변경 행부터 차단한다. 기존 미등록 직원은 다른 정보만 변경해도 사번을 함께 입력해야 한다. 따라서 로컬 컬럼 메타데이터는 아직 nullable이며, 두 DB가 모두 NOT NULL이라고 표현해서는 안 된다.
-
-실제 사번 5건 등록 후 020 SQL을 다시 실행하면 CHECK 검증과 NOT NULL 전환이 완료된다. 임의 사번이나 시트 직원 정보는 추가하지 않았다. NULL·빈 문자열·공백 UPDATE 거부를 양쪽 DB에서 트랜잭션으로 검증했다. ERD 테마를 유지하고 제약 메타데이터를 최신화했다. 홈페이지의 실제 사번 로그인 구현은 별도 확인 대상이다.
+이번 문서는 로컬 public DB 조회 기준이다. 과거 Cloud 100명 원본은 현재 연결에서 찾지 못했으며, 승인된 시드로 로컬 TEST_MANUAL 100명을 재구성했다. 과거 Cloud 원본과 동일 복원이라고 표현하지 않는다. 실제 팀원 시트 적재는 하지 않았다. 로컬의 잘못된 시트 정보 적재는 직전 백업과 동일하게 복구했다. 위의 2026-10-21 백업·복원 수치는 과거 검증 이력이며 현재 DB 전체 백업의 검증 결과로 사용하지 않는다. 변경 이유와 상태는 [최상위 변경점 문서](../시트_DB_변경점.md)를 참고한다.

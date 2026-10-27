@@ -1,65 +1,78 @@
-# PostgreSQL 전체 DB 설치·복원
+# 로컬 DB 설치·복원 — Miniforge 기준
 
-Windows x64 / Python 3.12 / PostgreSQL 17.11 / pgvector 0.8.2 기준. Git에서 받는 파일은 전체 논리 백업이며 실제 테이블·데이터·임베딩을 포함한다. 실행 중인 DB 내부 파일이나 로컬 관리자 비밀번호는 포함하지 않는다.
+2026-10-26 이 PC에서 로컬 PostgreSQL을 실행하고 마이그레이션 001~020 및 가상 직원 100명을 확인했다. 업무 DB는 `127.0.0.1:55433/growpath`다. 기존 사용자 5명을 포함한 직원 총수는 105명이다.
 
-## 1. 준비와 의존성 설치
+## 1. 환경 준비
 
-Python 3.12와 [Miniforge](https://github.com/conda-forge/miniforge)를 설치한다. 아래 명령은 project 최상위에서 실행한다.
+프로젝트 최상위 PowerShell에서 실행한다. 이 PC에는 Python 3.12.13 `llm_env`와 PostgreSQL용 `growpath_db` Miniforge 환경이 이미 있다. `.venv`를 추가로 만들지 않는다. 다른 PC에서 `llm_env`가 없을 때만 `conda create -n llm_env python=3.12 pip -y`로 생성한다.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r database/requirements.txt
+cd C:\final_team2\project
+$py = "$env:USERPROFILE\miniforge3\envs\llm_env\python.exe"
+& $py -m pip install -r database/requirements.txt
+# PostgreSQL이 없는 새 PC에서만 설치. 이미 준비된 이 PC에서는 생략한다.
 powershell -ExecutionPolicy Bypass -File database/scripts/install_postgres.ps1
-```
-
-설치 스크립트는 Conda의 growpath_db 환경에 PostgreSQL 17.11을 설치하고 포함된 pgvector 파일을 해시 검증 후 배치한다. 동일 파일은 유지하며 다른 확장이 이미 설치돼 있으면 덮어쓰지 않는다. 기존 환경을 쓸 때는 `-SkipPackageInstall`을 추가한다. 기본 경로가 아니면 `-CondaExe`로 conda.exe를 지정한다.
-
-## 2. 새 PC에서 전체 복원
-
-```powershell
 cd database
-..\.venv\Scripts\python.exe scripts/restore_db.py restore --archive data/exports/growpath_full_20261021.dump --initialize --write-config
 ```
 
-새 관리자 비밀번호를 물으면 터미널에 입력한다. 비밀번호는 출력하지 않는다. 새 PostgreSQL 저장 폴더를 만들고 127.0.0.1:55433에서 시작한 뒤 growpath DB를 생성·복원한다. 성공하면 `.env.local`에 연결을 저장한다.
+Python 패키지는 `llm_env`, PostgreSQL 17.11 실행 파일은 `growpath_db/Library/bin`에 있다. pgvector 0.8.2는 설치 스크립트가 포함된 파일의 해시를 검사해 배치한다. 기본 Miniforge 위치가 다르면 `$py`와 `-CondaExe`, 복원의 `--pg-bin`을 실제 경로로 지정한다.
 
-이미 DB 저장 폴더·대상 DB·`.env.local`이 있으면 덮어쓰지 않는다. 기존 서버에 별도 DB로 복원할 때는 아래처럼 실행한다. 비밀번호는 `.env.local`의 POSTGRES_PASSWORD 또는 환경변수·입력값을 사용한다.
+## 2. 이 PC의 기존 DB 실행
 
 ```powershell
-python scripts/restore_db.py restore --archive data/exports/growpath_full_20261021.dump --database growpath_review
+& $py scripts/local_db.py start
+& $py scripts/local_db.py status
+& $py scripts/db.py verify
 ```
 
-다른 설치 경로는 `--pg-bin "C:/.../Library/bin"`, 다른 포트는 `--port`로 지정한다. 복원 실패 DB는 조사할 수 있게 남기며 자동 삭제하지 않는다.
+이 PC에서는 이미 복원·갱신했으므로 `--initialize --write-config`를 다시 실행하지 않는다. `.env.local`은 이 PC 연결용이고 기존 키·연결 비밀번호는 보존했다. 주소·비밀번호를 Git에 올리지 않는다.
 
-## 3. 확인·시작·중지
+## 3. 다른 PC 또는 별도 DB에 최신 덤프 복원
+
+최신 파일은 `data/exports/growpath_local_100_passwords_20261026.dump`와 같은 이름의 `.manifest.json`이다. 2026-10-21/22 덤프와 이전 `growpath_latest.dump`는 과거 상태다.
+
+실행 DB 폴더와 `.env.local`이 없는 새 PC에서만:
 
 ```powershell
-python scripts/local_db.py status
-python scripts/db.py verify
-python scripts/local_db.py stop
-python scripts/local_db.py start
+& $py scripts/restore_db.py restore --archive data/exports/growpath_local_100_passwords_20261026.dump --initialize --write-config
 ```
 
-PyCharm은 Host 127.0.0.1, Port 55433, Database growpath, User postgres, Password `.env.local`의 값, SSL 사용 안 함으로 연결한다. SQL 콘솔도 growpath를 선택한다.
-
-```sql
-SELECT current_database(), current_setting('server_version');
-SELECT count(*) FROM public.courses;
-SELECT extname, extversion FROM pg_extension ORDER BY extname;
-```
-
-복원 스크립트는 백업 SHA-256, 50개 테이블 건수, 기본키·외래키·CHECK 등 202개 제약조건, 뷰·확장, 자료/규정 벡터 거리 연산을 확인한다. 2026-10-21 별도 검증 DB에서 총 15,608행 복원 검증을 통과했다. 결과는 Git 제외 경로 `data/local_db/restore_verification.json`에 저장한다.
-
-## 4. 새 백업 만들기
+기존 서버에 비교용 새 DB를 만들 때:
 
 ```powershell
-python scripts/restore_db.py backup --output data/exports/growpath_full_새날짜.dump
+& $py scripts/restore_db.py restore --archive data/exports/growpath_local_100_passwords_20261026.dump --database growpath_review
 ```
 
-동일 스냅샷에서 메타데이터와 DB 백업을 만들고 옆에 `.manifest.json`을 저장한다. 기존 파일은 덮어쓰지 않는다. 포함 대상은 모든 DB 스키마·테이블·행·벡터·뷰·함수·시퀀스이며, 클러스터 역할·관리자 비밀번호와 외부 파일 저장소는 별도다. 규정 원본은 database/data/regulations에 보존한다.
+기존 DB·실행 폴더·`.env.local`은 자동 덮어쓰지 않는다. 비교 DB 검증은 `--database growpath_review --verify-only`와 같은 덤프를 지정한다. 비밀번호는 `.env.local` 또는 터미널 입력으로 받으며 출력하지 않는다. `.env.local`은 비교 DB로 자동 전환하지 않는다.
 
-## Git 범위
+## 4. 가상 직원 100명과 보존 범위
 
-전체 DB 백업·manifest·pgvector 설치 파일·확정 학습 데이터는 포함한다. `.env`·`.env.local`·토큰·실제 실행 DB 폴더·로그·캐시·모델 가중치는 제외한다. 실행 DB 파일을 직접 복사하거나 수정하지 않는다.
+AI데이터센터·인재경영실·업무시스템팀·인프라운영팀·데이터운영팀에 각 20명, 부서장 각 1명이다. 기존 TEST_MANUAL 9명의 ID·이름·이메일·비밀번호 해시를 보존하고 프로필·배정을 재구성했으며 신규 91명을 추가했다. 기술 2~4개, 자격 0~2개, 가상 학력·날짜·프로젝트 설명을 기존 마스터 FK로 연결했다. 실제 사용자 5명은 행 전체를 변경하지 않았다.
 
-상세 테이블: [로컬 DB](docs/DATABASE.md), [팩토리 Neon](docs/FACTORY_DATABASE.md). 공식 형식: [pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html), [pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html).
+이전 Cloud 100명 원본은 현재 연결에 없어서 사용자 승인으로 기존 시드 20261023과 부서 배정 규칙을 이용해 재구성했다. 이전 Cloud의 모든 프로필·ID와 일치하는 원본 복원이 아니다. 테스트 직원 100명의 비밀번호는 사용자 지정 공통값으로 통일하고 개별 솔트 Argon2id 해시 100건을 검증했다. 기존 공통 Cloud 비밀번호가 그대로 통한다고 가정하지 않는다. 실제 팀원 시트를 적재하거나 새 AI 추천·보고서를 생성한 작업도 아니다.
+
+```powershell
+# 미리보기. 완료된 100명이면 ALREADY_COMPLETE이며 다시 생성하지 않는다.
+& $py scripts/seed_local_test_workforce.py
+# 최초 재구성이 필요한 로컬 DB에서만:
+& $py scripts/seed_local_test_workforce.py --apply
+```
+
+기존 사용자 5명의 사번은 원래 NULL이므로 추정값을 넣지 않았다. 020의 `employees_number_required` CHECK는 이 과거 누락만 NOT VALID로 보존하고 신규·수정 행에는 적용한다. `verify`는 누락 5건을 `legacy_constraint_warnings`로 명시한다. 그 밖의 미검증 제약은 실패 처리한다.
+
+## 5. 문서·백업 갱신
+
+```powershell
+& $py scripts/refresh_db_documents.py
+& $py scripts/restore_db.py backup --output data/exports/growpath_local_새날짜.dump
+& $py scripts/local_db.py stop
+```
+
+ERD 두 경로의 기존 테마와 통합 보고서의 학습 절은 유지하고 실제 DB 구조·건수만 갱신한다. 덤프 manifest는 SHA-256·테이블 건수·제약·확장·뷰를 기록하며 복원 시 대조하고 벡터 자기 유사도를 검사한다. 기존 사용자와 인증 해시가 포함된 전체 덤프는 지정 수신자에게만 전달하며 Git push하지 않는다.
+
+변경 전 백업: `data/exports/before_local_refresh_20261026.dump`. 실제 접속 설정은 `.env.local`, 상세 구조는 프로젝트 `docs/DATABASE.md`, ERD는 `database/docs/ERD_최종.html`을 참고한다. 권한은 서버에서 별도로 검증해야 하며 구조 검사 성공이 추천 품질 합격을 뜻하지 않는다.
+
+관련 문서: [DB 구조](docs/DATABASE.md) · [ERD](docs/ERD_최종.html)
+
+
+검증 완료(2026-10-26): 별도 growpath_verify_20261026 DB에 실제 복원, 50테이블·12,519행·210제약·자료/규정 벡터 검사 PASS. 회귀 테스트 4/4 PASS. 가상 직원 기술 293행·자격 96행·학력 100행. 검증 기록은 data/local_db/local_refresh_verification.json. 복원 검증 DB는 조사·비교용으로 보존했다.

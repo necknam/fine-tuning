@@ -6,8 +6,11 @@ import streamlit as st
 root=Path(__file__).resolve().parent
 sys.path.insert(0,str(root/"scripts"))
 st.set_page_config(page_title="GrowPath · 실험실",layout="wide")
-view=st.sidebar.selectbox("화면",["학습·실전 보고서","B200 저장 결과"])
-if view=="B200 저장 결과":
+view=st.sidebar.selectbox("화면",["Qwen3.5-4B P01~P06 비교","학습·실전 보고서","B200 저장 결과 (27B)"])
+if view=="Qwen3.5-4B P01~P06 비교":
+    from qwen35_comparison_dashboard import render
+    render()
+elif view=="B200 저장 결과 (27B)":
     from current_experiment_dashboard import render
     render()
 else:

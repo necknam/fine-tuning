@@ -131,3 +131,8 @@ Supabase TEST_MANUAL 100명 전체에 사용자 지정 공통 테스트 비밀�
 ### 최신 운영 상태 정리
 
 Supabase TEST_MANUAL 100명 공통 테스트 비밀번호 설정·검증 완료. 평문은 기록하지 않는다. 구형 로컬 동기화가 Cloud 독립 계정을 덮어쓰지 않도록 중단 검사를 추가했다. 로컬 DB는 사용자 담당으로 유지한다. 최신 Cloud 실험 절차와 검증 결과는 docs/CLOUD_WORKFLOW.md에 기록했다.
+
+
+## 2026-10-26 로컬 DB·Miniforge 최신화
+
+사용자 승인으로 기존 시드 규칙을 이용해 TEST_MANUAL 100명 재구성(기존9+신규91), 기존 사용자5명 보존. 부서별20명·부서장1명. 이전 Cloud 원본의 완전 복원이 아니며 신규91명 비밀번호 미설정. 001~020 적용, 기존5명의 사번 NULL은 보존하고 검증 경고. llm_env Python3.12.13 / growpath_db PostgreSQL17.11·pgvector0.8.2. 최신 덤프 database/data/exports/growpath_local_100_20261026.dump, 변경전 before_local_refresh_20261026.dump. 상세 실행은 database/RESTORE_OTHER_PC.md. Cloud 쓰기·Git push 없음.

@@ -133,12 +133,21 @@ def verify(c):
   if actual['pk']!=spec['pk']:raise ValueError('Primary key mismatch: '+table)
   signature=lambda f:(tuple(f['columns']),f['target'],tuple(f['target_columns']))
   if not {signature(f) for f in spec['fks']}.issubset({signature(f) for f in actual['fks']}):raise ValueError('Foreign key mismatch: '+table)
- invalid=c.execute("SELECT conname FROM pg_constraint WHERE NOT convalidated AND connamespace IN (SELECT oid FROM pg_namespace WHERE nspname IN ('public','regulations','growpath_meta','growpath_legacy'))").fetchall()
- if invalid:raise ValueError('Unvalidated DB constraints remain')
+ invalid=c.execute("SELECT conname,conrelid::regclass::text AS relation,contype,pg_get_expr(conbin,conrelid) AS expression FROM pg_constraint WHERE NOT convalidated AND connamespace IN (SELECT oid FROM pg_namespace WHERE nspname IN ('public','regulations','growpath_meta','growpath_legacy'))").fetchall()
+ warnings=[]
+ for item in invalid:
+  # Migration 020 deliberately preserves historical missing employee numbers.
+  expr=''.join(item['expression'].split()) if item['expression'] else ''
+  expected="((employee_numberISNOTNULL)AND(employee_number!~'^[[:space:]]*$'::text))"
+  if item['conname']=='employees_number_required' and item['relation'] in ('employees','public.employees') and item['contype']=='c' and expr==expected:
+   missing=c.execute("SELECT count(*) AS n FROM public.employees WHERE employee_number IS NULL OR employee_number ~ '^[[:space:]]*$'").fetchone()['n']
+   if not missing:raise ValueError('Employee-number constraint should be validated')
+   warnings.append({'constraint':'employees_number_required','legacy_missing_numbers':missing,'new_or_updated_rows_checked':True})
+  else:raise ValueError('Unvalidated DB constraints remain: '+item['conname'])
  counts=[]
  for table in meta:
   schema,name=table.split('.')
   n=c.execute(sql.SQL('SELECT COUNT(*) AS n FROM {}.{}').format(sql.Identifier(schema),sql.Identifier(name))).fetchone()['n']
   counts.append({'table':table,'count':n})
  vectors=c.execute('SELECT resource_type,count(*) AS n FROM public.learning_resource_embeddings GROUP BY resource_type ORDER BY resource_type').fetchall()
- return {'schema_and_foreign_keys':'pass','tables':counts,'foreign_keys':sum(len(x['fks']) for x in meta.values()),'resource_vectors':vectors,'unconfirmed_employee_profiles':c.execute('SELECT count(*) AS n FROM public.employees WHERE institution_id IS NULL OR department_id IS NULL OR job_grade_id IS NULL OR job_id IS NULL').fetchone()['n']}
+ return {'schema_and_foreign_keys':'pass','legacy_constraint_warnings':warnings,'tables':counts,'foreign_keys':sum(len(x['fks']) for x in meta.values()),'resource_vectors':vectors,'unconfirmed_employee_profiles':c.execute('SELECT count(*) AS n FROM public.employees WHERE institution_id IS NULL OR department_id IS NULL OR job_grade_id IS NULL OR job_id IS NULL').fetchone()['n']}

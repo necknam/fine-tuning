@@ -73,3 +73,9 @@ env/
 
 # Machine-local runtimes, backups, scratch data and credentials
 /work/
+
+# Local full backups include preserved user records and authentication hashes.
+/database/data/exports/before_local_refresh_20261026.*
+/database/data/exports/growpath_local_100_20261026.*
+
+/database/data/exports/growpath_local_100_passwords_20261026.*

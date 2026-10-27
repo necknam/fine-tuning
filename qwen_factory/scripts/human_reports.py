@@ -200,8 +200,8 @@ def render(root, weight, group):
     cfg=yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else None
     rows=["# "+heading,"",f"- 모델: {m['model']['base_model_id']}",f"- 모델 revision: {m['model']['revision']}",
           "- 학습 구분: "+("샘플 시험" if m.get("is_sample",True) else "실제 데이터 학습"),
-          "- 학습 데이터 해시: "+str(m.get("dataset",{}).get("train",{}).get("sha256","이전 보고서 · 실행 설정 참조")),
-          "- 검증 데이터 해시: "+str(m.get("dataset",{}).get("validation",{}).get("sha256","이전 보고서 · 실행 설정 참조")),
+          "- 학습 데이터 해시: "+str(((m.get("dataset") or {}).get("train") or {}).get("sha256") or "이전 보고서 · 실행 설정 참조"),
+          "- 검증 데이터 해시: "+str(((m.get("dataset") or {}).get("validation") or {}).get("sha256") or "검증 분할 없음 · 실행 설정 참조"),
           f"- run_id: {m['run_id']}",f"- weight_id: {weight}",f"- 저장 에포크: {m['trained_epoch']}",
           "- 평균: 각 입력의 최신 휴먼 점수를 입력별 동일 비중으로 평균; 미평가 입력 제외", "",
           "## 학습 파라미터", ""]
@@ -240,3 +240,4 @@ def render(root, weight, group):
         else:
             rows += ["AI 평가 대기", ""]
     return "\n".join(rows)
+
