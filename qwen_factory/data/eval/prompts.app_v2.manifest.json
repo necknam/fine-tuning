@@ -2,9 +2,9 @@
   "version": "app_v2",
   "parent_file": "prompts.app_v1.jsonl",
   "parent_sha256": "605e14f7caf762c28b9c86d0b389b80cbaf3e1520906732b1911229ad3602b25",
-  "sha256": "7c1565e23373411d1adf5ef50c31ac8842ad68b92fb9c3610440ea1cc411cafe",
+  "sha256": "d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac",
   "count": 10,
-  "change": "Updated durations to random 4~12 weeks (case 7 to 12 weeks), and converted case 10 from RAG prototype to general report automation.",
+  "change": "Replace contradictory fixed-period and technology-example system instructions; user requests and evidence unchanged. Rerun both base and tuned outputs.",
   "cases": [
     {
       "case_index": 0,

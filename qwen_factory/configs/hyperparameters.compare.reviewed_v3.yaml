@@ -63,7 +63,7 @@ evaluation:
   mode: shared_fixed_10
   file: data/eval/prompts.app_v2.jsonl
   expected_count: 10
-  sha256: 7c1565e23373411d1adf5ef50c31ac8842ad68b92fb9c3610440ea1cc411cafe
+  sha256: d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac
 dataset_mode: production
 readiness:
   token_length_verified: true
