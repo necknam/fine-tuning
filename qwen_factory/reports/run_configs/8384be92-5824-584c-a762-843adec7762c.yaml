@@ -1,0 +1,134 @@
+schema_version: 1
+model:
+  base_model_id: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+quantization:
+  load_in_4bit: false
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+data:
+  train_file: data/revision_1500/assembled/all.jsonl
+  format: messages
+  expected_train_samples: 1500
+  test_file: data/eval/live_e21bb336f56085edbd6f4a904eda9a3ea94b245d0d3e5eec252405c80ddb30d7.jsonl
+  loss_policy: final_assistant_only
+  train_sha256: 998a9499a14f6c08de0526919567bcf5a9fcf31642f75aa24fca143c51265529
+  minimum_max_length: 7168
+  training_scope: all_1500_fixed10
+experiments:
+- recipe_name: saved_B200_P01_epoch2_5_inference_only
+  lora:
+    r: 32
+    lora_alpha: 64
+    lora_dropout: 0.05
+    bias: none
+    target_modules: all-linear
+    scope: language_model
+  training:
+    num_train_epochs: 5
+    learning_rate: 0.0001
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    weight_decay: 0.01
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    per_device_eval_batch_size: 1
+    max_length: 7168
+    packing: false
+    bf16: true
+    gradient_checkpointing: true
+    optim: paged_adamw_8bit
+    seed: 42
+    data_seed: 42
+    logging_steps: 1
+    eval_strategy: 'no'
+  artifacts:
+    save_epochs:
+    - 2
+    - 5
+  checkpoints:
+    save_strategy: steps
+    save_steps: 50
+    save_total_limit: 3
+    save_only_model: false
+inference:
+  batch_size: 1
+  max_new_tokens: 4096
+evaluation:
+  mode: shared_fixed_10
+  file: data/eval/live_e21bb336f56085edbd6f4a904eda9a3ea94b245d0d3e5eec252405c80ddb30d7.jsonl
+  expected_count: 10
+  sha256: e21bb336f56085edbd6f4a904eda9a3ea94b245d0d3e5eec252405c80ddb30d7
+dataset_mode: production
+readiness:
+  token_length_verified: true
+  gpu_memory_and_speed_verified: false
+  training_started: false
+live_evaluation:
+  enabled: false
+  cohort_id: compare_saved_baseline_v4_full1500_fixed10_v1
+  case_employee_ids:
+  - 12
+  - 14
+  - 6
+  - 8
+  - 16
+  - 7
+  - 15
+  - 17
+  - 13
+  - 12
+experiment_id: 2cc9c0d8-c083-5f48-8e69-31797c425618
+runtime:
+  linear_attention_backend: torch_reference
+execution_policy: evaluate_only
+historical_training:
+- run_id: ebbefba5-2634-4133-bd32-3789ecd66751
+  weight_id: 2f7ede81-6b5d-4802-95d6-ca583678c885
+  preset: P01
+  epochs: 2
+  train_samples: 1500
+  learning_rate: 0.0001
+  batch_size: 1
+  accumulation: 16
+  max_length: 7168
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  scheduler: cosine
+  seed: 42
+  data_file: data/revision_1500/assembled/all.jsonl
+  data_sha256: 998a9499a14f6c08de0526919567bcf5a9fcf31642f75aa24fca143c51265529
+  eval_sha256: d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac
+  quantization: false
+  dtype: bfloat16
+  config_sha256: 7bee415e0f07adbcbb1160906e3a8a549902533ea247946dbfbdf0b4b8bd4161
+- run_id: f0e5649b-541f-48cb-8a3c-1c060fc0b092-epoch5
+  weight_id: 79fc310b-7fda-417e-add8-2a392aeb1885
+  preset: P01
+  epochs: 5
+  train_samples: 1500
+  learning_rate: 0.0001
+  batch_size: 1
+  accumulation: 16
+  max_length: 7168
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  weight_decay: 0.01
+  warmup_ratio: 0.05
+  scheduler: cosine
+  seed: 42
+  data_file: data/revision_1500/assembled/all.jsonl
+  data_sha256: 998a9499a14f6c08de0526919567bcf5a9fcf31642f75aa24fca143c51265529
+  eval_sha256: d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac
+  quantization: false
+  dtype: bfloat16
+  config_sha256: 70ec0048479d8334eff7b67f8d5d1608f6c921329c652fb6c9353f2bcf1a9fba
+  additional_epochs: 3
+  initial_cumulative_epoch: 2
+  optimizer_restart_after_epoch: 2
+  continuous_five_epoch_schedule: false

@@ -41,7 +41,11 @@ def catalog(root, precision=None, cohort="report"):
     reports=[]
     for path in sorted((root/"reports").glob(pattern)):
         report = json.loads(path.read_text(encoding="utf-8"))
-        if report.get("test_sha256") != "76114e2c66c537374b7edac99660fe4e8e4fcc7dd5f2a003dfb175207675dc69":
+        if report.get("test_sha256") not in (
+            "76114e2c66c537374b7edac99660fe4e8e4fcc7dd5f2a003dfb175207675dc69",
+            "7c1565e23373411d1adf5ef50c31ac8842ad68b92fb9c3610440ea1cc411cafe",
+            "d0e1b2d687063250aadeed1b7735dafaaa5d9fce25a82566b79dffbe30b050ac",
+        ):
             continue
         # Historical B200 JSON omitted timestamps/model metadata; enrich only in memory.
         if not report.get("created_at"):

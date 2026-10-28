@@ -1,0 +1,51 @@
+schema_version: 1
+model:
+  base_model_id: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+data:
+  train_file: data/sample/processed/control_1114a1ece2fd7c8e09f6.jsonl
+  validation_file: data/sample/processed/control_ce72417d87e99e880f42.jsonl
+  format: messages
+  expected_train_samples: 54
+  test_file: data/sample/eval/control_e05e42cb358efa23c32c.jsonl
+experiments:
+- recipe_name: P01 기준 실험
+  lora:
+    r: 32
+    lora_alpha: 64
+    lora_dropout: 0.05
+    bias: none
+    target_modules: all-linear
+    scope: language_model
+  training:
+    num_train_epochs: 5
+    learning_rate: 0.0001
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    weight_decay: 0.01
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    per_device_eval_batch_size: 1
+    max_length: 2048
+    packing: false
+    bf16: true
+    gradient_checkpointing: true
+    optim: paged_adamw_8bit
+    seed: 42
+    data_seed: 42
+    logging_steps: 10
+    eval_strategy: epoch
+  artifacts:
+    save_epochs:
+    - 4
+    - 5
+  checkpoints:
+    save_strategy: steps
+    save_steps: 50
+    save_total_limit: 3
+    save_only_model: false

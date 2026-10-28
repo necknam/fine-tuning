@@ -1,0 +1,71 @@
+schema_version: 1
+model:
+  base_model_id: Qwen/Qwen3.8-27B
+  revision: 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
+quantization:
+  load_in_4bit: false
+  bnb_4bit_quant_type: nf4
+  bnb_4bit_compute_dtype: bfloat16
+  bnb_4bit_use_double_quant: true
+data:
+  train_file: data/production/restored_baseline_v1/all.jsonl
+  format: messages
+  expected_train_samples: 1500
+  test_file: data/eval/live_76114e2c66c537374b7edac99660fe4e8e4fcc7dd5f2a003dfb175207675dc69.jsonl
+  loss_policy: final_assistant_only
+  train_sha256: 998a9499a14f6c08de0526919567bcf5a9fcf31642f75aa24fca143c51265529
+  minimum_max_length: 6858
+  training_scope: all_1500_fixed10
+experiments:
+- recipe_name: P03_final27B_r64_a128_epoch5_20261026
+  lora:
+    r: 64
+    lora_alpha: 128
+    lora_dropout: 0.05
+    bias: none
+    target_modules: all-linear
+    scope: language_model
+  training:
+    num_train_epochs: 5
+    learning_rate: 7.5e-05
+    lr_scheduler_type: cosine
+    warmup_ratio: 0.05
+    weight_decay: 0.01
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 16
+    per_device_eval_batch_size: 1
+    max_length: 7168
+    packing: false
+    bf16: true
+    gradient_checkpointing: true
+    optim: paged_adamw_8bit
+    seed: 42
+    data_seed: 42
+    logging_steps: 1
+    eval_strategy: 'no'
+  artifacts:
+    save_epochs:
+    - 5
+  checkpoints:
+    save_strategy: steps
+    save_steps: 50
+    save_total_limit: 3
+    save_only_model: false
+inference:
+  batch_size: 4
+  max_new_tokens: 4096
+evaluation:
+  mode: shared_fixed_10
+  file: data/eval/live_76114e2c66c537374b7edac99660fe4e8e4fcc7dd5f2a003dfb175207675dc69.jsonl
+  expected_count: 10
+  sha256: 76114e2c66c537374b7edac99660fe4e8e4fcc7dd5f2a003dfb175207675dc69
+dataset_mode: production
+readiness:
+  token_length_verified: true
+  gpu_memory_and_speed_verified: false
+  training_started: false
+live_evaluation:
+  enabled: false
+experiment_id: 050beb67-eca1-5457-ba95-c0526f8373c2
+runtime:
+  linear_attention_backend: installed
