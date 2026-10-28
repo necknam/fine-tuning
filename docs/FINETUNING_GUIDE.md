@@ -102,3 +102,9 @@ release 필수값: `status: REVIEWED_CANDIDATE`, `blocking_findings: 0`, `record
 
 
 로컬 준비 검증: `qwen_factory/check_qwen35_local.ps1`은 전용 Miniforge 환경에서 pip check와 GPU 없는 profile/data check만 실행한다. 패키지 정합성 PASS·새 환경에서도16개 검사 PASS. 상세 증거는 `qwen_factory/outputs/qwen35_4b_preparation_20261026/readiness.json`. 데이터 미완료 상태는 정상적으로 차단하며, RunPod 연결·시작·모델 가중치 다운로드를 하지 않는다.
+
+## 2026-10-28 · 가중치 결합 완성형 27B 모델 (`v_fin`) 배포 및 사용 안내
+
+- **Hugging Face 완성형 모델 ID**: **[`Ssum-mer/qwen3.8-27b-growpath-v18`](https://huggingface.co/Ssum-mer/qwen3.8-27b-growpath-v18)**
+- `Qwen/Qwen3.8-27B` 베이스 모델에 `V18` LoRA 어댑터(`production/25c44a3d-9f80-450b-8d91-60977f4189fa`)를 `merge_and_unload()`로 영구 병합한 단일 BF16 완성 모델(12 shards)이다.
+- 별도의 `PeftModel` 로드 없이 `AutoModelForImageTextToText.from_pretrained("Ssum-mer/qwen3.8-27b-growpath-v18")`로 즉시 추론할 수 있으며, 신규 평가 입력 10종(`prompts.app_v2.jsonl`, SHA `7c1565e2...`)에 대한 최종 보고서는 Streamlit 대시보드의 **`v_fin`** (`weight_id`: `f1827b00-9f80-450b-8d91-60977f4189fa`) 및 `docs/model_evaluation_reports/v_fin_27B_merged_f1827b00/`에 수록되어 있다.

@@ -65,7 +65,9 @@ Streamlit Cloud의 저장소는 necknam/fine-tuning, main 브랜치, 최상위 s
 
 개선 v4 P01 비교와 별도 승인된 복구 원본 P02~P06 학습은 완료됐다. 현재 상태는 [핸드오프](docs/CODEX_HANDOFF.md)를 따른다. [학습·비교 실행 기준](docs/학습_비교_실행기준_20261023.md)은 당시 실험 조건을 보존한 문서이며 새 학습 실행 지시가 아니다.
 
-최종 기록(2026-10-24): 복구 원본 가중치10개·고정10개 번들5개 외부 해시 검증 완료, 해당 실행의 생성 답변0건. 개선 v4 P01 품질 gate는 FAILED다. Pod STOP 요청은 수락됐으나 실제 정지 상태는 미확인이고, 다른 PC 생성기는 미구현이다. 2026-10-25 문서 정리는 이 기록을 기준으로 하며 외부 상태를 새로 조회한 결과가 아니다.
+최종 기록(2026-10-28):
+- **27B 가중치 결합 완성형 모델(`v_fin`) 배포 및 평가 완료**: `Qwen/Qwen3.8-27B` 베이스 모델에 `V18` LoRA 가중치를 영구 결합(`merge_and_unload`)한 완성형 모델 **[`Ssum-mer/qwen3.8-27b-growpath-v18`](https://huggingface.co/Ssum-mer/qwen3.8-27b-growpath-v18)**을 Hugging Face Hub에 배포하고, 개정된 공통 평가 입력 10종(`prompts.app_v2.jsonl`, 4~12주 및 사내 정기 업무 보고서 자동화)에 대한 A100 BF16 추론 보고서(`v_fin`)와 AI/휴먼 평가를 Streamlit 및 Neon DB에 동기화 완료했다.
+- **Qwen3.5-4B 확장 3,000건 P01~P03 완료**: `Qwen/Qwen3.5-4B` 확장 3,000건 학습(P01, P02, P03) 및 1단계~4단계 비교 보고서(`docs/model_evaluation_reports/`)와 대시보드 연동을 완료했다. 상세 내역은 [파인튜닝 히스토리](docs/파인튜닝_히스토리.md) 및 [최신 평가 결과 보고서](docs/최신_평가_결과_보고서.md)를 참조한다.
 
 project_v2는 별도 로컬 저장소이며 push 금지다. 기존 project P01 실행 설정은 별도 유지한다.
 

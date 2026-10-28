@@ -86,7 +86,8 @@ def catalog(root, precision=None, cohort="report"):
         original=dict(versions)
         for weight, group in sorted(groups.items(), key=lambda item:(item[1]["manifest"]["run_id"], item[1]["manifest"]["trained_epoch"])):
             if weight not in versions:
-                versions[weight] = max(versions.values(), default=0)+1
+                num_vals = [v for v in versions.values() if isinstance(v, int)]
+                versions[weight] = max(num_vals, default=0)+1
             group["version"] = versions[weight]
         path.parent.mkdir(parents=True, exist_ok=True)
         if versions!=original or not path.exists():
@@ -110,7 +111,9 @@ def ratings(root, weight):
 
 def title(root, weight, group):
     score = case_summary(root,weight,group)["average"]
-    return f"v{group['version']}_" + (f"{score:.1f}(5점 만점)" if score is not None else "평가대기")
+    v = group['version']
+    prefix = str(v) if str(v).startswith("v") else f"v{v}"
+    return f"{prefix}_" + (f"{score:.1f}(5점 만점)" if score is not None else "평가대기")
 
 
 def case_signature(report):

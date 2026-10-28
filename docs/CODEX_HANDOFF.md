@@ -4,6 +4,9 @@
 
 변경 이유→실제 결과→후속 결정은 [파인튜닝 히스토리](파인튜닝_히스토리.md) 및 [최신 평가 결과 보고서](최신_평가_결과_보고서.md)를 먼저 읽는다.
 
+- **27B 가중치 결합 완성형 모델(`v_fin`) Hugging Face 배포 및 신규 10종 입력 실제 GPU 추론·평가 완료**:
+  - **완성형 모델 주소**: **[`Ssum-mer/qwen3.8-27b-growpath-v18`](https://huggingface.co/Ssum-mer/qwen3.8-27b-growpath-v18)** (`Qwen/Qwen3.8-27B` 베이스 모델 + `V18` LoRA 가중치를 `merge_and_unload()`로 영구 병합한 12-shard BF16 단일 모델).
+  - **실제 GPU 추론 및 Streamlit `v_fin` 등록**: RunPod `NVIDIA A100-SXM4-80GB`에서 개정된 신규 입력 10종(`prompts.app_v2.jsonl`, 4~12주 및 사내 정기 업무 보고서 자동화)을 직접 추론하여 `qwen_factory/reports/smoke_compare_v_fin_27B_c00..09/` 및 `docs/model_evaluation_reports/v_fin_27B_merged_f1827b00/`에 보존하고, Streamlit 대시보드 최상단에 **`v_fin`** (`weight_id`: `f1827b00-9f80-450b-8d91-60977f4189fa`, AI 엄격 평가 평균 **3.03 / 5.00**, 부분 수정 Case 9·10 **3.40 / 5.00**)으로 등록 완료.
 - **RunPod B200 4B (P01~P03) 최종 완료 및 Pod 종료**: 인스턴스 `kq65qxmwibvy27`에서 `Qwen/Qwen3.5-4B` 확장 3,000건 학습이 **P01, P02, P03**까지 완료되었으며, 이후 Pod이 삭제/종료되어 로컬·Neon DB·Git에 보존된 결과를 최종 확정본으로 한다.
   - **P01** (`LR=1e-4, r=32, alpha=64`): 5에폭(940스텝, 평균 loss `0.4492`, 5,522.3s) 학습 **PASS 완료** (`outputs/qwen35_4b_3000_P01/4c4ca588aa05ade6/full3000/result.json` 및 2/5에폭 비교 20건, 보고서 20건 로컬/Git 보존).
   - **P02** (`LR=5e-5, r=32, alpha=64`): 5에폭(940스텝, 평균 loss `0.5086`, 최종 스텝 loss `0.312`, 5,833.5s) 학습 및 **신규 평가 입력 10종(4~12주) 실제 GPU 추론 20건 PASS 완료** (`outputs/qwen35_4b_3000_P02/2064b093494b22de/full3000/result.json` 및 2/5에폭 비교 20건, 보고서 20건, `Downloads/roadmap_case_1..10.md` 보존).

@@ -41,7 +41,7 @@ def main():
     run_configs_dir.mkdir(parents=True, exist_ok=True)
 
     exported_paths = []
-    for preset in ("P01", "P02"):
+    for preset in ("P01", "P02", "P03"):
         p_root = ROOT / f"outputs/qwen35_4b_3000_{preset}"
         if not p_root.exists():
             continue
