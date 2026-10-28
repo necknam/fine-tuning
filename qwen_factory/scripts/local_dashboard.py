@@ -1002,7 +1002,7 @@ with review_tab:
                         for entry in ai_entries:
                             score_text=f"{entry['average']:.2f} / 5" if entry['average'] is not None else "판단 불가"
                             with st.expander(f"입력 {entry['case_index']+1} · AI {score_text}"):
-                                st.write(entry["review"]["summary"])
+                                st.write(entry["review"].get("summary") or "종합 요약: 각 항목별 엄격 평가 점수를 확인하세요.")
                                 for issue in entry["review"].get("issues",[]):st.write("• "+issue)
                     else:
                         st.info("현재 보고서의 입력·답변·평가 모델에 맞는 AI 평가 결과가 아직 없습니다.")

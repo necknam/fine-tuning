@@ -418,13 +418,13 @@ def render_panel(root,weight,group,case):
     if entry:
         st.metric('AI 항목 평균 · 사람 점수와 별개',f"{entry['average']:.2f} / 5" if entry['average'] is not None else '판단 불가')
         st.dataframe([{'항목':label,'점수':str(entry['review'][name]['score']) if entry['review'][name]['score'] is not None else '해당 없음/판단 불가','근거':entry['review'][name]['reason']} for name,label in DIMENSIONS.items()],hide_index=True,width='stretch')
-        st.write(entry['review']['summary'])
+        st.write(entry['review'].get('summary') or '종합 요약: 각 항목별 엄격 평가 근거를 확인하세요.')
         for name,label in DIMENSIONS.items():
             quotes=entry['review'][name].get('evidence',[])
             if quotes:
                 with st.expander(label+' · 평가 근거 원문 인용'):
                     for quote in quotes:st.text(quote)
-        for issue in entry['review']['issues']:st.warning(issue)
+        for issue in entry['review'].get('issues',[]):st.warning(issue)
         st.caption('평가 시각: '+datetime.fromisoformat(entry['created_at']).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S KST')+' · 규칙 '+entry['rubric'])
         with st.expander('API 사용량'):st.json(entry['usage'])
 

@@ -239,12 +239,12 @@ def render(root, weight, group):
         rows += ["### AI 보조 평가", ""]
         if entry:
             score=f"{entry['average']:.2f} / 5" if entry['average'] is not None else "판단 불가"
-            rows += ["AI 평균: "+score,"",entry["review"]["summary"],"", "| 항목 | 점수 | 근거 |","| --- | --- | --- |"]
+            rows += ["AI 평균: "+score,"",entry["review"].get("summary") or "종합 요약: 각 항목별 엄격 평가 근거를 확인하세요.","", "| 항목 | 점수 | 근거 |","| --- | --- | --- |"]
             for name,label in ai_evaluation.DIMENSIONS.items():
                 item=entry["review"][name]
                 reason=(item["reason"]+(' · 원문 인용: '+ ' / '.join(item.get('evidence',[])) if item.get('evidence') else '')).replace("|","\\|").replace("\n"," ")
                 rows.append(f"| {label} | {item['score'] if item['score'] is not None else '해당 없음'} | {reason} |")
-            rows += ["",*["- "+issue for issue in entry["review"]["issues"]],""]
+            rows += ["",*["- "+issue for issue in entry["review"].get("issues",[])],""]
         else:
             rows += ["AI 평가 대기", ""]
     return "\n".join(rows)
